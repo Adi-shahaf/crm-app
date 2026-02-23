@@ -16,7 +16,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -32,6 +32,7 @@ import { PersonDrawer } from './person-drawer'
 type SortField = 'full_name' | 'sheet_datetime' | 'score_1_3' | 'total_contracts'
 type SortDirection = 'asc' | 'desc'
 type SortConfig = { field: SortField; direction: SortDirection } | null
+type DrawerTab = 'notes' | 'purchases'
 type ColumnKey =
   | 'full_name'
   | 'group_id'
@@ -145,7 +146,9 @@ export function BoardClient({
   const [people, setPeople] = useState(initialPeople)
   const [purchaseCounts, setPurchaseCounts] = useState<Record<string, number>>({})
   const [purchaseTotals, setPurchaseTotals] = useState<Record<string, number>>({})
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({})
   const [selectedPerson, setSelectedPerson] = useState<PersonWithGroup | null>(null)
+  const [selectedDrawerTab, setSelectedDrawerTab] = useState<DrawerTab>('notes')
   const [searchTerm, setSearchTerm] = useState('')
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() => ({ ...DEFAULT_VISIBLE_COLUMNS }))
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
@@ -170,6 +173,21 @@ export function BoardClient({
     }
 
     loadPurchaseStats()
+  }, [supabase])
+
+  useEffect(() => {
+    const loadNoteStats = async () => {
+      const { data, error } = await supabase.from('notes').select('person_id')
+      if (error || !data) return
+
+      const counts: Record<string, number> = {}
+      for (const note of data) {
+        counts[note.person_id] = (counts[note.person_id] || 0) + 1
+      }
+      setNoteCounts(counts)
+    }
+
+    loadNoteStats()
   }, [supabase])
 
   const handleUpdatePerson = async (id: string, updates: Partial<PersonWithGroup>) => {
@@ -204,6 +222,7 @@ export function BoardClient({
       setPeople(prev => [data, ...prev])
       setPurchaseCounts((prev) => ({ ...prev, [data.id]: 0 }))
       setPurchaseTotals((prev) => ({ ...prev, [data.id]: 0 }))
+      setNoteCounts((prev) => ({ ...prev, [data.id]: 0 }))
     }
   }
 
@@ -213,6 +232,7 @@ export function BoardClient({
     const previousPeople = people
     const previousCounts = purchaseCounts
     const previousTotals = purchaseTotals
+    const previousNoteCounts = noteCounts
     setPeople((prev) => prev.filter((person) => !ids.includes(person.id)))
     setPurchaseCounts((prev) => {
       const next = { ...prev }
@@ -222,6 +242,13 @@ export function BoardClient({
       return next
     })
     setPurchaseTotals((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        delete next[id]
+      }
+      return next
+    })
+    setNoteCounts((prev) => {
       const next = { ...prev }
       for (const id of ids) {
         delete next[id]
@@ -262,6 +289,7 @@ export function BoardClient({
         setPeople(previousPeople)
         setPurchaseCounts(previousCounts)
         setPurchaseTotals(previousTotals)
+        setNoteCounts(previousNoteCounts)
       } else {
         setPeople(data)
       }
@@ -373,20 +401,37 @@ export function BoardClient({
           people={filteredPeople.filter((p) => p.group_id === group.id)} 
           purchaseCounts={purchaseCounts}
           purchaseTotals={purchaseTotals}
+          noteCounts={noteCounts}
           onUpdatePerson={handleUpdatePerson}
           onCreatePerson={handleCreatePerson}
           onDeletePeople={handleDeletePeople}
           visibleColumns={visibleColumns}
-          onOpenDrawer={setSelectedPerson}
+          onOpenDrawer={(person, tab = 'notes') => {
+            setSelectedPerson(person)
+            setSelectedDrawerTab(tab)
+          }}
         />
       ))}
       <PersonDrawer 
         person={selectedPerson} 
         isOpen={!!selectedPerson} 
         onClose={() => setSelectedPerson(null)}
+        initialTab={selectedDrawerTab}
         onPurchaseCreated={(personId, price) => {
           setPurchaseCounts((prev) => ({ ...prev, [personId]: (prev[personId] || 0) + 1 }))
           setPurchaseTotals((prev) => ({ ...prev, [personId]: (prev[personId] || 0) + price }))
+        }}
+        onPurchaseUpdated={(personId, previousPrice, nextPrice) => {
+          setPurchaseTotals((prev) => ({
+            ...prev,
+            [personId]: (prev[personId] || 0) - previousPrice + nextPrice,
+          }))
+        }}
+        onNotesChanged={(personId, delta) => {
+          setNoteCounts((prev) => ({
+            ...prev,
+            [personId]: Math.max(0, (prev[personId] || 0) + delta),
+          }))
         }}
       />
     </div>
@@ -399,6 +444,7 @@ function GroupSection({
   people, 
   purchaseCounts,
   purchaseTotals,
+  noteCounts,
   onUpdatePerson,
   onCreatePerson,
   onDeletePeople,
@@ -410,11 +456,12 @@ function GroupSection({
   people: PersonWithGroup[],
   purchaseCounts: Record<string, number>,
   purchaseTotals: Record<string, number>,
+  noteCounts: Record<string, number>,
   onUpdatePerson: (id: string, updates: Partial<PersonWithGroup>) => void,
   onCreatePerson: (groupId: string, name: string) => void,
   onDeletePeople: (ids: string[]) => void,
   visibleColumns: Record<ColumnKey, boolean>,
-  onOpenDrawer: (person: PersonWithGroup) => void
+  onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void
 }) {
   const [isOpen, setIsOpen] = useState(true)
   const [newItemName, setNewItemName] = useState('')
@@ -609,6 +656,7 @@ function GroupSection({
                   groups={groups}
                   purchaseCount={purchaseCounts[person.id] || 0}
                   purchaseTotal={purchaseTotals[person.id] || 0}
+                  noteCount={noteCounts[person.id] || 0}
                   visibleColumns={visibleColumns}
                   onUpdate={onUpdatePerson} 
                   isSelected={validSelectedIds.includes(person.id)}
@@ -675,6 +723,7 @@ function EditableRow({
   groups,
   purchaseCount,
   purchaseTotal,
+  noteCount,
   visibleColumns,
   onUpdate,
   isSelected,
@@ -685,11 +734,12 @@ function EditableRow({
   groups: Group[],
   purchaseCount: number,
   purchaseTotal: number,
+  noteCount: number,
   visibleColumns: Record<ColumnKey, boolean>,
   onUpdate: (id: string, updates: Partial<PersonWithGroup>) => void,
   isSelected: boolean,
   onToggleSelect: (checked: boolean) => void,
-  onOpenDrawer: (person: PersonWithGroup) => void
+  onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void
 }) {
   const [editingField, setEditingField] = useState<keyof PersonWithGroup | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -769,10 +819,22 @@ function EditableRow({
             <Maximize2 className="h-3.5 w-3.5" />
             <span className="text-xs">פתח</span>
           </Button>
-          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 whitespace-nowrap">
-            <ShoppingCart className="h-3 w-3" />
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
+            onClick={() => onOpenDrawer(person, 'purchases')}
+          >
+            <ShoppingCart className="h-4 w-4" />
             <span>{purchaseCount}</span>
-          </span>
+          </button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
+            onClick={() => onOpenDrawer(person, 'notes')}
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span>{noteCount}</span>
+          </button>
         </div>
       </TableCell>
       
