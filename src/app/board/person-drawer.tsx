@@ -33,14 +33,41 @@ const PAYMENT_METHOD_OPTIONS = [
 
 const getTodayDateInput = () => new Date().toISOString().split('T')[0]
 
+const getSupabaseErrorMessage = (error: unknown) => {
+  if (!error) return 'Unknown error'
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object') {
+    const maybeError = error as {
+      message?: string
+      details?: string
+      hint?: string
+      code?: string
+    }
+    if (maybeError.message) return maybeError.message
+    const details = [maybeError.code, maybeError.details, maybeError.hint]
+      .filter(Boolean)
+      .join(' | ')
+    if (details) return details
+    try {
+      return JSON.stringify(error)
+    } catch {
+      return 'Unexpected error object'
+    }
+  }
+  return 'Unexpected error type'
+}
+
 export function PersonDrawer({
   person,
   isOpen,
-  onClose
+  onClose,
+  onPurchaseCreated
 }: {
   person: PersonWithGroup | null,
   isOpen: boolean,
-  onClose: () => void
+  onClose: () => void,
+  onPurchaseCreated?: (personId: string, price: number) => void
 }) {
   const [notes, setNotes] = useState<Note[]>([])
   const [purchases, setPurchases] = useState<Purchase[]>([])
@@ -53,6 +80,9 @@ export function PersonDrawer({
     paymentMethod: '',
     installmentPlan: '',
   })
+  const [isPurchaseFormOpen, setIsPurchaseFormOpen] = useState(false)
+  const [isCreatingPurchase, setIsCreatingPurchase] = useState(false)
+  const [purchaseError, setPurchaseError] = useState('')
   const supabase = createClient()
 
   useEffect(() => {
@@ -102,11 +132,16 @@ export function PersonDrawer({
 
     const serviceName = newPurchase.serviceName.trim()
     const paymentMethod = newPurchase.paymentMethod.trim()
-    const price = Number(newPurchase.price)
+    const normalizedPrice = newPurchase.price.replace(',', '.').trim()
+    const price = Number(normalizedPrice)
 
     if (!serviceName || !paymentMethod || !newPurchase.saleDate || Number.isNaN(price)) {
+      setPurchaseError('נא למלא את כל השדות הנדרשים בצורה תקינה.')
       return
     }
+
+    setPurchaseError('')
+    setIsCreatingPurchase(true)
 
     const { data, error } = await supabase
       .from('purchases')
@@ -122,8 +157,20 @@ export function PersonDrawer({
       .select()
       .single()
 
-    if (!error && data) {
+    if (error) {
+      const message = getSupabaseErrorMessage(error)
+      if (message.includes('sale_date') || message.includes('installment_plan')) {
+        setPurchaseError('השינויים במסד הנתונים לא עודכנו עדיין. צריך להריץ את המיגרציה החדשה.')
+      } else {
+        setPurchaseError(`שמירת רכישה נכשלה: ${message}`)
+      }
+      setIsCreatingPurchase(false)
+      return
+    }
+
+    if (data) {
       setPurchases([data, ...purchases])
+      onPurchaseCreated?.(person.id, price)
       setNewPurchase({
         serviceName: '',
         price: '',
@@ -131,7 +178,11 @@ export function PersonDrawer({
         paymentMethod: '',
         installmentPlan: '',
       })
+      setPurchaseError('')
+      setIsPurchaseFormOpen(false)
     }
+
+    setIsCreatingPurchase(false)
   }
 
   const canCreatePurchase =
@@ -139,7 +190,7 @@ export function PersonDrawer({
     !!newPurchase.paymentMethod &&
     !!newPurchase.saleDate &&
     newPurchase.price !== '' &&
-    !Number.isNaN(Number(newPurchase.price))
+    !Number.isNaN(Number(newPurchase.price.replace(',', '.').trim()))
 
   if (!person) return null
 
@@ -210,50 +261,70 @@ export function PersonDrawer({
           </TabsContent>
 
           <TabsContent value="purchases" className="flex-1 flex flex-col p-0 m-0 overflow-hidden">
-            <div className="p-4 border-b bg-white space-y-3">
-              <Input
-                placeholder="שם השירות"
-                value={newPurchase.serviceName}
-                onChange={(e) => setNewPurchase((prev) => ({ ...prev, serviceName: e.target.value }))}
-              />
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="מחיר"
-                value={newPurchase.price}
-                onChange={(e) => setNewPurchase((prev) => ({ ...prev, price: e.target.value }))}
-              />
-              <Input
-                type="date"
-                value={newPurchase.saleDate}
-                onChange={(e) => setNewPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
-              />
-              <Select
-                value={newPurchase.paymentMethod}
-                onValueChange={(value) => setNewPurchase((prev) => ({ ...prev, paymentMethod: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="אופן התשלום" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYMENT_METHOD_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="הסדר תשלומים (טקסט חופשי)"
-                value={newPurchase.installmentPlan}
-                onChange={(e) => setNewPurchase((prev) => ({ ...prev, installmentPlan: e.target.value }))}
-              />
+            <div className="p-4 border-b bg-white">
               <div className="flex justify-end">
-                <Button size="sm" onClick={handleAddPurchase} disabled={!canCreatePurchase}>
-                  יצירת רכישה
+                <Button
+                  size="sm"
+                  variant={isPurchaseFormOpen ? "outline" : "default"}
+                  onClick={() => {
+                    setPurchaseError('')
+                    setIsPurchaseFormOpen((prev) => !prev)
+                  }}
+                >
+                  {isPurchaseFormOpen ? 'סגור' : 'הוספת רכישה'}
                 </Button>
               </div>
+
+              {isPurchaseFormOpen ? (
+                <div className="mt-3 space-y-3">
+                  <Input
+                    placeholder="שם השירות"
+                    value={newPurchase.serviceName}
+                    onChange={(e) => setNewPurchase((prev) => ({ ...prev, serviceName: e.target.value }))}
+                  />
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="מחיר"
+                    value={newPurchase.price}
+                    onChange={(e) => setNewPurchase((prev) => ({ ...prev, price: e.target.value }))}
+                  />
+                  <Input
+                    type="date"
+                    value={newPurchase.saleDate}
+                    onChange={(e) => setNewPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
+                  />
+                  <Select
+                    value={newPurchase.paymentMethod}
+                    onValueChange={(value) => setNewPurchase((prev) => ({ ...prev, paymentMethod: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="אופן התשלום" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHOD_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="הסדר תשלומים (טקסט חופשי)"
+                    value={newPurchase.installmentPlan}
+                    onChange={(e) => setNewPurchase((prev) => ({ ...prev, installmentPlan: e.target.value }))}
+                  />
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={handleAddPurchase} disabled={!canCreatePurchase || isCreatingPurchase}>
+                      יצירת רכישה
+                    </Button>
+                  </div>
+                  {purchaseError ? (
+                    <p className="text-sm text-red-600">{purchaseError}</p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <ScrollArea className="flex-1 p-6 bg-gray-50">
@@ -268,7 +339,7 @@ export function PersonDrawer({
                       <div className="flex justify-between items-center gap-3">
                         <div className="font-medium text-gray-900">{p.service_id || 'Unknown Service'}</div>
                         <div className="font-semibold text-gray-900">
-                          ${p.price?.toFixed(2) || '0.00'}
+                          ₪{p.price?.toFixed(2) || '0.00'}
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">תאריך מכירה: {p.sale_date ? new Date(p.sale_date).toLocaleDateString() : '-'}</div>

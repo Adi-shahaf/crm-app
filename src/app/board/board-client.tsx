@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Group, PersonWithGroup } from '@/types/database'
 import { 
@@ -16,7 +16,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -55,8 +55,30 @@ export function BoardClient({
 }) {
   const groups = initialGroups
   const [people, setPeople] = useState(initialPeople)
+  const [purchaseCounts, setPurchaseCounts] = useState<Record<string, number>>({})
+  const [purchaseTotals, setPurchaseTotals] = useState<Record<string, number>>({})
   const [selectedPerson, setSelectedPerson] = useState<PersonWithGroup | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    const loadPurchaseStats = async () => {
+      const { data, error } = await supabase.from('purchases').select('person_id, price')
+      if (error || !data) return
+
+      const counts: Record<string, number> = {}
+      const totals: Record<string, number> = {}
+      for (const purchase of data) {
+        const personId = purchase.person_id
+        const price = typeof purchase.price === 'number' ? purchase.price : Number(purchase.price || 0)
+        counts[personId] = (counts[personId] || 0) + 1
+        totals[personId] = (totals[personId] || 0) + (Number.isNaN(price) ? 0 : price)
+      }
+      setPurchaseCounts(counts)
+      setPurchaseTotals(totals)
+    }
+
+    loadPurchaseStats()
+  }, [supabase])
 
   const handleUpdatePerson = async (id: string, updates: Partial<PersonWithGroup>) => {
     const previousPerson = people.find((person) => person.id === id)
@@ -88,6 +110,8 @@ export function BoardClient({
       console.error('Error creating person:', error)
     } else if (data) {
       setPeople(prev => [data, ...prev])
+      setPurchaseCounts((prev) => ({ ...prev, [data.id]: 0 }))
+      setPurchaseTotals((prev) => ({ ...prev, [data.id]: 0 }))
     }
   }
 
@@ -95,7 +119,23 @@ export function BoardClient({
     if (!ids.length) return
 
     const previousPeople = people
+    const previousCounts = purchaseCounts
+    const previousTotals = purchaseTotals
     setPeople((prev) => prev.filter((person) => !ids.includes(person.id)))
+    setPurchaseCounts((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        delete next[id]
+      }
+      return next
+    })
+    setPurchaseTotals((prev) => {
+      const next = { ...prev }
+      for (const id of ids) {
+        delete next[id]
+      }
+      return next
+    })
     setSelectedPerson((prev) => (prev && ids.includes(prev.id) ? null : prev))
 
     let deleteError: unknown = null
@@ -128,6 +168,8 @@ export function BoardClient({
 
       if (refreshError || !data) {
         setPeople(previousPeople)
+        setPurchaseCounts(previousCounts)
+        setPurchaseTotals(previousTotals)
       } else {
         setPeople(data)
       }
@@ -142,6 +184,8 @@ export function BoardClient({
           group={group} 
           groups={groups}
           people={people.filter(p => p.group_id === group.id)} 
+          purchaseCounts={purchaseCounts}
+          purchaseTotals={purchaseTotals}
           onUpdatePerson={handleUpdatePerson}
           onCreatePerson={handleCreatePerson}
           onDeletePeople={handleDeletePeople}
@@ -151,7 +195,11 @@ export function BoardClient({
       <PersonDrawer 
         person={selectedPerson} 
         isOpen={!!selectedPerson} 
-        onClose={() => setSelectedPerson(null)} 
+        onClose={() => setSelectedPerson(null)}
+        onPurchaseCreated={(personId, price) => {
+          setPurchaseCounts((prev) => ({ ...prev, [personId]: (prev[personId] || 0) + 1 }))
+          setPurchaseTotals((prev) => ({ ...prev, [personId]: (prev[personId] || 0) + price }))
+        }}
       />
     </div>
   )
@@ -161,6 +209,8 @@ function GroupSection({
   group, 
   groups,
   people, 
+  purchaseCounts,
+  purchaseTotals,
   onUpdatePerson,
   onCreatePerson,
   onDeletePeople,
@@ -169,6 +219,8 @@ function GroupSection({
   group: Group, 
   groups: Group[],
   people: PersonWithGroup[],
+  purchaseCounts: Record<string, number>,
+  purchaseTotals: Record<string, number>,
   onUpdatePerson: (id: string, updates: Partial<PersonWithGroup>) => void,
   onCreatePerson: (groupId: string, name: string) => void,
   onDeletePeople: (ids: string[]) => void,
@@ -190,7 +242,7 @@ function GroupSection({
     const getValue = (person: PersonWithGroup): string | number | null => {
       if (sortConfig.field === 'sheet_datetime') return Date.parse(getPersonDateTime(person))
       if (sortConfig.field === 'score_1_3') return person.score_1_3
-      if (sortConfig.field === 'total_contracts') return person.total_contracts
+      if (sortConfig.field === 'total_contracts') return purchaseTotals[person.id] || 0
       return person.full_name
     }
 
@@ -211,7 +263,7 @@ function GroupSection({
 
       return sortConfig.direction === 'asc' ? comparison : -comparison
     })
-  }, [people, sortConfig])
+  }, [people, sortConfig, purchaseTotals])
 
   const toggleSort = (field: SortField) => {
     setSortConfig((prev) => {
@@ -349,6 +401,8 @@ function GroupSection({
                   key={person.id} 
                   person={person} 
                   groups={groups}
+                  purchaseCount={purchaseCounts[person.id] || 0}
+                  purchaseTotal={purchaseTotals[person.id] || 0}
                   onUpdate={onUpdatePerson} 
                   isSelected={validSelectedIds.includes(person.id)}
                   onToggleSelect={(checked) => {
@@ -412,6 +466,8 @@ function GroupSection({
 function EditableRow({ 
   person, 
   groups,
+  purchaseCount,
+  purchaseTotal,
   onUpdate,
   isSelected,
   onToggleSelect,
@@ -419,6 +475,8 @@ function EditableRow({
 }: { 
   person: PersonWithGroup, 
   groups: Group[],
+  purchaseCount: number,
+  purchaseTotal: number,
   onUpdate: (id: string, updates: Partial<PersonWithGroup>) => void,
   isSelected: boolean,
   onToggleSelect: (checked: boolean) => void,
@@ -502,6 +560,10 @@ function EditableRow({
             <Maximize2 className="h-3.5 w-3.5" />
             <span className="text-xs">פתח</span>
           </Button>
+          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 whitespace-nowrap">
+            <ShoppingCart className="h-3 w-3" />
+            <span>{purchaseCount}</span>
+          </span>
         </div>
       </TableCell>
       
@@ -583,8 +645,10 @@ function EditableRow({
       {/* 13. Ad name */}
       {renderCell('ad_name', person.ad_name)}
 
-      {/* 14. Total contracts */}
-      {renderCell('total_contracts', person.total_contracts, true)}
+      {/* 14. Total contracts (computed from purchases, non-editable) */}
+      <TableCell className="p-2 align-middle text-gray-700">
+        <span className="block truncate">₪{purchaseTotal.toFixed(2)}</span>
+      </TableCell>
 
       {/* 15. Status */}
       {renderCell('status', person.status)}
