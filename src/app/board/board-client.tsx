@@ -16,7 +16,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, GripVertical, Check, X, Maximize2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Check, X, Maximize2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -36,7 +36,7 @@ export function BoardClient({
   initialGroups: Group[], 
   initialPeople: PersonWithGroup[] 
 }) {
-  const [groups, setGroups] = useState(initialGroups)
+  const groups = initialGroups
   const [people, setPeople] = useState(initialPeople)
   const [selectedPerson, setSelectedPerson] = useState<PersonWithGroup | null>(null)
   const supabase = createClient()
@@ -71,6 +71,24 @@ export function BoardClient({
     }
   }
 
+  const handleDeletePeople = async (ids: string[]) => {
+    if (!ids.length) return
+
+    const previousPeople = people
+    setPeople((prev) => prev.filter((person) => !ids.includes(person.id)))
+    setSelectedPerson((prev) => (prev && ids.includes(prev.id) ? null : prev))
+
+    const { error } = await supabase
+      .from('people')
+      .delete()
+      .in('id', ids)
+
+    if (error) {
+      console.error('Error deleting people:', error)
+      setPeople(previousPeople)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {groups.map(group => (
@@ -81,6 +99,7 @@ export function BoardClient({
           people={people.filter(p => p.group_id === group.id)} 
           onUpdatePerson={handleUpdatePerson}
           onCreatePerson={handleCreatePerson}
+          onDeletePeople={handleDeletePeople}
           onOpenDrawer={setSelectedPerson}
         />
       ))}
@@ -99,6 +118,7 @@ function GroupSection({
   people, 
   onUpdatePerson,
   onCreatePerson,
+  onDeletePeople,
   onOpenDrawer
 }: { 
   group: Group, 
@@ -106,11 +126,17 @@ function GroupSection({
   people: PersonWithGroup[],
   onUpdatePerson: (id: string, updates: Partial<PersonWithGroup>) => void,
   onCreatePerson: (groupId: string, name: string) => void,
+  onDeletePeople: (ids: string[]) => void,
   onOpenDrawer: (person: PersonWithGroup) => void
 }) {
   const [isOpen, setIsOpen] = useState(true)
   const [newItemName, setNewItemName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  const validSelectedIds = selectedIds.filter((id) => people.some((person) => person.id === id))
+  const allSelected = people.length > 0 && validSelectedIds.length === people.length
+  const hasSelection = validSelectedIds.length > 0
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -136,6 +162,23 @@ function GroupSection({
           {group.name}
           <Badge variant="secondary" className="font-normal text-xs">{people.length}</Badge>
         </h2>
+        <div className="ml-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasSelection}
+            onClick={() => {
+              if (!hasSelection) return
+              if (!window.confirm(`Delete ${validSelectedIds.length} selected row(s)?`)) return
+              onDeletePeople(validSelectedIds)
+              setSelectedIds([])
+            }}
+            className="h-8"
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete selected {hasSelection ? `(${validSelectedIds.length})` : ''}
+          </Button>
+        </div>
       </div>
 
       <CollapsibleContent>
@@ -143,7 +186,19 @@ function GroupSection({
           <Table>
             <TableHeader className="bg-gray-50">
               <TableRow>
-                <TableHead className="w-8"></TableHead>
+                <TableHead className="w-[120px]">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedIds(people.map((person) => person.id))
+                        return
+                      }
+                      setSelectedIds([])
+                    }}
+                  />
+                </TableHead>
                 <TableHead className="min-w-[150px]">שם</TableHead>
                 <TableHead className="min-w-[150px]">קבוצה</TableHead>
                 <TableHead className="min-w-[120px]">מספר טלפון</TableHead>
@@ -157,7 +212,7 @@ function GroupSection({
                 <TableHead className="min-w-[100px]">מוכר</TableHead>
                 <TableHead className="min-w-[120px]">קמפיין</TableHead>
                 <TableHead className="min-w-[120px]">שם המודעה</TableHead>
-                <TableHead className="min-w-[100px]">סה"כ חוזים</TableHead>
+                <TableHead className="min-w-[100px]">סה&quot;כ חוזים</TableHead>
                 <TableHead className="min-w-[120px]">סטטוס</TableHead>
                 <TableHead className="min-w-[120px]">מצב ליד</TableHead>
               </TableRow>
@@ -169,6 +224,14 @@ function GroupSection({
                   person={person} 
                   groups={groups}
                   onUpdate={onUpdatePerson} 
+                  isSelected={validSelectedIds.includes(person.id)}
+                  onToggleSelect={(checked) => {
+                    setSelectedIds((prev) =>
+                      checked
+                        ? [...new Set([...prev, person.id])]
+                        : prev.filter((id) => id !== person.id)
+                    )
+                  }}
                   onOpenDrawer={onOpenDrawer}
                 />
               ))}
@@ -224,11 +287,15 @@ function EditableRow({
   person, 
   groups,
   onUpdate,
+  isSelected,
+  onToggleSelect,
   onOpenDrawer
 }: { 
   person: PersonWithGroup, 
   groups: Group[],
   onUpdate: (id: string, updates: Partial<PersonWithGroup>) => void,
+  isSelected: boolean,
+  onToggleSelect: (checked: boolean) => void,
   onOpenDrawer: (person: PersonWithGroup) => void
 }) {
   const [editingField, setEditingField] = useState<keyof PersonWithGroup | null>(null)
@@ -247,7 +314,8 @@ function EditableRow({
       }
       
       if (person[editingField] !== finalValue) {
-        onUpdate(person.id, { [editingField]: finalValue } as any)
+        const updates = { [editingField]: finalValue } as Partial<PersonWithGroup>
+        onUpdate(person.id, updates)
       }
     }
     setEditingField(null)
@@ -279,15 +347,22 @@ function EditableRow({
   return (
     <TableRow className="group/row hover:bg-gray-50/80">
       <TableCell className="p-2 align-middle">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          className="h-8 opacity-0 group-hover/row:opacity-100 flex items-center gap-1 text-gray-500 hover:text-gray-900"
-          onClick={() => onOpenDrawer(person)}
-        >
-          <Maximize2 className="h-3.5 w-3.5" />
-          <span className="text-xs">פתח</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => onToggleSelect(e.target.checked)}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 opacity-0 group-hover/row:opacity-100 flex items-center gap-1 text-gray-500 hover:text-gray-900"
+            onClick={() => onOpenDrawer(person)}
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            <span className="text-xs">פתח</span>
+          </Button>
+        </div>
       </TableCell>
       
       {/* 1. Name */}
