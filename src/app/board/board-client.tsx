@@ -44,6 +44,7 @@ const GROUP_NAME_MAP: Record<string, string> = {
 const getDisplayGroupName = (name: string) => GROUP_NAME_MAP[name] || name
 
 const getPersonDateTime = (person: PersonWithGroup) => person.sheet_datetime || person.created_at
+const DELETE_BATCH_SIZE = 100
 
 export function BoardClient({ 
   initialGroups, 
@@ -97,14 +98,39 @@ export function BoardClient({
     setPeople((prev) => prev.filter((person) => !ids.includes(person.id)))
     setSelectedPerson((prev) => (prev && ids.includes(prev.id) ? null : prev))
 
-    const { error } = await supabase
-      .from('people')
-      .delete()
-      .in('id', ids)
+    let deleteError: unknown = null
 
-    if (error) {
-      console.error('Error deleting people:', error)
-      setPeople(previousPeople)
+    for (let i = 0; i < ids.length; i += DELETE_BATCH_SIZE) {
+      const batchIds = ids.slice(i, i + DELETE_BATCH_SIZE)
+      const { error } = await supabase
+        .from('people')
+        .delete()
+        .in('id', batchIds)
+
+      if (error) {
+        deleteError = error
+        break
+      }
+    }
+
+    if (deleteError) {
+      console.error('Error deleting people:', {
+        count: ids.length,
+        batchSize: DELETE_BATCH_SIZE,
+        error: deleteError,
+      })
+
+      // Some batches may have succeeded before a failure. Refresh from DB to avoid stale UI state.
+      const { data, error: refreshError } = await supabase
+        .from('people')
+        .select('*, groups(*)')
+        .order('created_at', { ascending: false })
+
+      if (refreshError || !data) {
+        setPeople(previousPeople)
+      } else {
+        setPeople(data)
+      }
     }
   }
 
