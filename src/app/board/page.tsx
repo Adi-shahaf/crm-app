@@ -17,10 +17,22 @@ export default async function BoardPage() {
     .select('*')
     .order('sort_order', { ascending: true })
 
-  const { data: people, error: peopleError } = await supabase
+  let { data: people, error: peopleError } = await supabase
     .from('people')
     .select('*, groups(*)')
+    .order('sheet_datetime', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
+
+  // Backward compatibility until the sheet_datetime migration is applied everywhere.
+  if (peopleError && peopleError.message.includes('sheet_datetime')) {
+    const fallback = await supabase
+      .from('people')
+      .select('*, groups(*)')
+      .order('created_at', { ascending: false })
+
+    people = fallback.data
+    peopleError = fallback.error
+  }
 
   if (groupsError || peopleError) {
     console.error('Error fetching data:', groupsError || peopleError)

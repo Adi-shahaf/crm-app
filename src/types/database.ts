@@ -29,6 +29,7 @@ export interface Person {
   status: string | null;
   lead_status: string | null;
   external_source_id: string | null;
+  sheet_datetime: string | null;
   created_at: string;
   updated_at: string;
 }

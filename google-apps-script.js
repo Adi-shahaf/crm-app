@@ -20,11 +20,12 @@ function onRowAdded(e) {
   // Ignore header row (assuming row 1 is header)
   if (row === 1) return;
 
-  // Assuming columns: A=Name, B=Phone, C=Email, D=Source
+  // Assuming columns: A=Name, B=Phone, C=Email, D=Source, E=Date/Time
   const name = sheet.getRange(row, 1).getValue();
   const phone = sheet.getRange(row, 2).getValue();
   const email = sheet.getRange(row, 3).getValue();
   const source = sheet.getRange(row, 4).getValue();
+  const dateTime = sheet.getRange(row, 5).getValue();
 
   if (!name) return; // Skip if no name
 
@@ -33,6 +34,7 @@ function onRowAdded(e) {
     phone: phone,
     email: email,
     source: source || 'Google Sheets',
+    dateTime: dateTime instanceof Date ? dateTime.toISOString() : dateTime,
     rowId: sheet.getId() + '_row_' + row // Unique ID to prevent duplicates
   };
 
