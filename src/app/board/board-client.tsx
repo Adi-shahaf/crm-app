@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Group, PersonWithGroup } from '@/types/database'
 import { 
@@ -32,6 +32,23 @@ import { PersonDrawer } from './person-drawer'
 type SortField = 'full_name' | 'sheet_datetime' | 'score_1_3' | 'total_contracts'
 type SortDirection = 'asc' | 'desc'
 type SortConfig = { field: SortField; direction: SortDirection } | null
+type ColumnKey =
+  | 'full_name'
+  | 'group_id'
+  | 'phone'
+  | 'email'
+  | 'sheet_datetime'
+  | 'score_1_3'
+  | 'source'
+  | 'whatsapp_response'
+  | 'employment_status'
+  | 'lead_idea'
+  | 'seller'
+  | 'campaign'
+  | 'ad_name'
+  | 'total_contracts'
+  | 'status'
+  | 'lead_status'
 
 const GROUP_NAME_MAP: Record<string, string> = {
   'New Leads': 'לידים',
@@ -45,6 +62,77 @@ const getDisplayGroupName = (name: string) => GROUP_NAME_MAP[name] || name
 
 const getPersonDateTime = (person: PersonWithGroup) => person.sheet_datetime || person.created_at
 const DELETE_BATCH_SIZE = 100
+const personMatchesSearch = (person: PersonWithGroup, search: string) => {
+  const normalizedSearch = search.trim().toLocaleLowerCase()
+  if (!normalizedSearch) return true
+
+  const searchableValues = [
+    person.full_name,
+    person.phone,
+    person.email,
+    person.source,
+    person.whatsapp_response,
+    person.employment_status,
+    person.lead_idea,
+    person.seller,
+    person.campaign,
+    person.ad_name,
+    person.status,
+    person.lead_status,
+    person.score_1_3,
+    person.total_contracts,
+    person.sheet_datetime,
+    person.created_at,
+    person.groups?.name,
+    person.groups?.name ? getDisplayGroupName(person.groups.name) : null,
+  ]
+
+  return searchableValues
+    .filter((value) => value !== null && value !== undefined)
+    .some((value) => String(value).toLocaleLowerCase().includes(normalizedSearch))
+}
+const COLUMN_LABELS: Record<ColumnKey, string> = {
+  full_name: 'שם',
+  group_id: 'קבוצה',
+  phone: 'מספר טלפון',
+  email: 'כתובת מייל',
+  sheet_datetime: 'תאריך ושעה',
+  score_1_3: 'ציון 1-3',
+  source: 'מקור',
+  whatsapp_response: 'תגובה להודעת ווטסאפ',
+  employment_status: 'שכיר / עצמאי',
+  lead_idea: 'רעיון (טופס לידים)',
+  seller: 'מוכר',
+  campaign: 'קמפיין',
+  ad_name: 'שם המודעה',
+  total_contracts: 'סה"כ חוזים',
+  status: 'סטטוס',
+  lead_status: 'מצב ליד',
+}
+const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
+  full_name: true,
+  group_id: true,
+  phone: true,
+  email: true,
+  sheet_datetime: true,
+  score_1_3: true,
+  source: true,
+  whatsapp_response: true,
+  employment_status: true,
+  lead_idea: true,
+  seller: true,
+  campaign: true,
+  ad_name: true,
+  total_contracts: true,
+  status: true,
+  lead_status: true,
+}
+const SORT_FIELD_TO_COLUMN: Record<SortField, ColumnKey> = {
+  full_name: 'full_name',
+  sheet_datetime: 'sheet_datetime',
+  score_1_3: 'score_1_3',
+  total_contracts: 'total_contracts',
+}
 
 export function BoardClient({ 
   initialGroups, 
@@ -58,6 +146,10 @@ export function BoardClient({
   const [purchaseCounts, setPurchaseCounts] = useState<Record<string, number>>({})
   const [purchaseTotals, setPurchaseTotals] = useState<Record<string, number>>({})
   const [selectedPerson, setSelectedPerson] = useState<PersonWithGroup | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() => ({ ...DEFAULT_VISIBLE_COLUMNS }))
+  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
+  const columnsMenuRef = useRef<HTMLDivElement | null>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -176,19 +268,115 @@ export function BoardClient({
     }
   }
 
+  const filteredPeople = useMemo(
+    () => people.filter((person) => personMatchesSearch(person, searchTerm)),
+    [people, searchTerm]
+  )
+  const visibleColumnCount = useMemo(
+    () => Object.values(visibleColumns).filter(Boolean).length,
+    [visibleColumns]
+  )
+  const visibleGroups = searchTerm.trim()
+    ? groups.filter((group) => filteredPeople.some((person) => person.group_id === group.id))
+    : groups
+
+  useEffect(() => {
+    if (!isColumnsMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!columnsMenuRef.current?.contains(event.target as Node)) {
+        setIsColumnsMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isColumnsMenuOpen])
+
+  const toggleColumnVisibility = (column: ColumnKey) => {
+    setVisibleColumns((prev) => {
+      const currentlyVisibleCount = Object.values(prev).filter(Boolean).length
+      if (prev[column] && currentlyVisibleCount === 1) return prev
+      return { ...prev, [column]: !prev[column] }
+    })
+  }
+
+  const setAllColumnsVisible = (value: boolean) => {
+    const next = value
+      ? { ...DEFAULT_VISIBLE_COLUMNS }
+      : { ...DEFAULT_VISIBLE_COLUMNS, full_name: true, group_id: false, phone: false, email: false, sheet_datetime: false, score_1_3: false, source: false, whatsapp_response: false, employment_status: false, lead_idea: false, seller: false, campaign: false, ad_name: false, total_contracts: false, status: false, lead_status: false }
+    setVisibleColumns(next)
+  }
+
   return (
     <div className="space-y-6">
-      {groups.map(group => (
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search anything..."
+          className="max-w-md bg-white"
+        />
+        <div className="relative" ref={columnsMenuRef}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsColumnsMenuOpen((prev) => !prev)}
+            className="h-10 bg-white"
+          >
+            View columns ({visibleColumnCount})
+          </Button>
+          {isColumnsMenuOpen && (
+            <div className="absolute left-0 z-20 mt-2 w-64 rounded-md border bg-white p-3 shadow-lg">
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <button
+                  type="button"
+                  className="text-blue-600 hover:text-blue-800"
+                  onClick={() => setAllColumnsVisible(true)}
+                >
+                  Show all
+                </button>
+                <button
+                  type="button"
+                  className="text-gray-600 hover:text-gray-800"
+                  onClick={() => setAllColumnsVisible(false)}
+                >
+                  Minimal view
+                </button>
+              </div>
+              <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+                {(Object.keys(COLUMN_LABELS) as ColumnKey[]).map((column) => {
+                  const checked = visibleColumns[column]
+                  const isOnlyVisible = checked && visibleColumnCount === 1
+                  return (
+                    <label key={column} className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={isOnlyVisible}
+                        onChange={() => toggleColumnVisibility(column)}
+                      />
+                      <span>{COLUMN_LABELS[column]}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {visibleGroups.map(group => (
         <GroupSection 
           key={group.id} 
           group={group} 
           groups={groups}
-          people={people.filter(p => p.group_id === group.id)} 
+          people={filteredPeople.filter((p) => p.group_id === group.id)} 
           purchaseCounts={purchaseCounts}
           purchaseTotals={purchaseTotals}
           onUpdatePerson={handleUpdatePerson}
           onCreatePerson={handleCreatePerson}
           onDeletePeople={handleDeletePeople}
+          visibleColumns={visibleColumns}
           onOpenDrawer={setSelectedPerson}
         />
       ))}
@@ -214,6 +402,7 @@ function GroupSection({
   onUpdatePerson,
   onCreatePerson,
   onDeletePeople,
+  visibleColumns,
   onOpenDrawer
 }: { 
   group: Group, 
@@ -224,6 +413,7 @@ function GroupSection({
   onUpdatePerson: (id: string, updates: Partial<PersonWithGroup>) => void,
   onCreatePerson: (groupId: string, name: string) => void,
   onDeletePeople: (ids: string[]) => void,
+  visibleColumns: Record<ColumnKey, boolean>,
   onOpenDrawer: (person: PersonWithGroup) => void
 }) {
   const [isOpen, setIsOpen] = useState(true)
@@ -235,14 +425,22 @@ function GroupSection({
   const validSelectedIds = selectedIds.filter((id) => people.some((person) => person.id === id))
   const allSelected = people.length > 0 && validSelectedIds.length === people.length
   const hasSelection = validSelectedIds.length > 0
+  const activeSortConfig =
+    sortConfig && visibleColumns[SORT_FIELD_TO_COLUMN[sortConfig.field]]
+      ? sortConfig
+      : null
+  const visibleColumnCount = useMemo(
+    () => Object.values(visibleColumns).filter(Boolean).length,
+    [visibleColumns]
+  )
 
   const sortedPeople = useMemo(() => {
-    if (!sortConfig) return people
+    if (!activeSortConfig) return people
 
     const getValue = (person: PersonWithGroup): string | number | null => {
-      if (sortConfig.field === 'sheet_datetime') return Date.parse(getPersonDateTime(person))
-      if (sortConfig.field === 'score_1_3') return person.score_1_3
-      if (sortConfig.field === 'total_contracts') return purchaseTotals[person.id] || 0
+      if (activeSortConfig.field === 'sheet_datetime') return Date.parse(getPersonDateTime(person))
+      if (activeSortConfig.field === 'score_1_3') return person.score_1_3
+      if (activeSortConfig.field === 'total_contracts') return purchaseTotals[person.id] || 0
       return person.full_name
     }
 
@@ -261,9 +459,9 @@ function GroupSection({
         comparison = String(valueA).localeCompare(String(valueB), 'he', { sensitivity: 'base' })
       }
 
-      return sortConfig.direction === 'asc' ? comparison : -comparison
+      return activeSortConfig.direction === 'asc' ? comparison : -comparison
     })
-  }, [people, sortConfig, purchaseTotals])
+  }, [activeSortConfig, people, purchaseTotals])
 
   const toggleSort = (field: SortField) => {
     setSortConfig((prev) => {
@@ -274,7 +472,7 @@ function GroupSection({
   }
 
   const renderSortChevron = (field: SortField) => {
-    const isActive = sortConfig?.field === field
+    const isActive = activeSortConfig?.field === field
 
     return (
       <button
@@ -284,7 +482,7 @@ function GroupSection({
         className="inline-flex h-5 w-5 items-center justify-center text-gray-400 hover:text-gray-700"
       >
         {isActive ? (
-          sortConfig.direction === 'asc' ? (
+          activeSortConfig.direction === 'asc' ? (
             <ChevronUp className="h-3.5 w-3.5" />
           ) : (
             <ChevronDown className="h-3.5 w-3.5" />
@@ -320,22 +518,22 @@ function GroupSection({
           {getDisplayGroupName(group.name)}
           <Badge variant="secondary" className="font-normal text-xs">{people.length}</Badge>
         </h2>
-        <div className="ml-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!hasSelection}
-            onClick={() => {
-              if (!hasSelection) return
-              if (!window.confirm(`Delete ${validSelectedIds.length} selected row(s)?`)) return
-              onDeletePeople(validSelectedIds)
-              setSelectedIds([])
-            }}
-            className="h-8"
-          >
-            <Trash2 className="h-4 w-4" />
-            Delete selected {hasSelection ? `(${validSelectedIds.length})` : ''}
-          </Button>
+        <div className="ml-auto flex items-center gap-2">
+          {hasSelection && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (!window.confirm(`Delete ${validSelectedIds.length} selected row(s)?`)) return
+                onDeletePeople(validSelectedIds)
+                setSelectedIds([])
+              }}
+              className="h-8"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete selected ({validSelectedIds.length})
+            </Button>
+          )}
         </div>
       </div>
 
@@ -357,42 +555,50 @@ function GroupSection({
                     }}
                   />
                 </TableHead>
+                {visibleColumns.full_name && (
                 <TableHead className="min-w-[150px]">
                   <div className="flex items-center gap-1">
                     <span>שם</span>
                     {renderSortChevron('full_name')}
                   </div>
                 </TableHead>
-                <TableHead className="min-w-[150px]">קבוצה</TableHead>
-                <TableHead className="min-w-[120px]">מספר טלפון</TableHead>
-                <TableHead className="min-w-[150px]">כתובת מייל</TableHead>
+                )}
+                {visibleColumns.group_id && <TableHead className="min-w-[150px]">קבוצה</TableHead>}
+                {visibleColumns.phone && <TableHead className="min-w-[120px]">מספר טלפון</TableHead>}
+                {visibleColumns.email && <TableHead className="min-w-[150px]">כתובת מייל</TableHead>}
+                {visibleColumns.sheet_datetime && (
                 <TableHead className="min-w-[120px]">
                   <div className="flex items-center gap-1">
                     <span>תאריך ושעה</span>
                     {renderSortChevron('sheet_datetime')}
                   </div>
                 </TableHead>
+                )}
+                {visibleColumns.score_1_3 && (
                 <TableHead className="min-w-[80px]">
                   <div className="flex items-center gap-1">
                     <span>ציון 1-3</span>
                     {renderSortChevron('score_1_3')}
                   </div>
                 </TableHead>
-                <TableHead className="min-w-[120px]">מקור</TableHead>
-                <TableHead className="min-w-[150px]">תגובה להודעת ווטסאפ</TableHead>
-                <TableHead className="min-w-[120px]">שכיר / עצמאי</TableHead>
-                <TableHead className="min-w-[150px]">רעיון (טופס לידים)</TableHead>
-                <TableHead className="min-w-[100px]">מוכר</TableHead>
-                <TableHead className="min-w-[120px]">קמפיין</TableHead>
-                <TableHead className="min-w-[120px]">שם המודעה</TableHead>
+                )}
+                {visibleColumns.source && <TableHead className="min-w-[120px]">מקור</TableHead>}
+                {visibleColumns.whatsapp_response && <TableHead className="min-w-[150px]">תגובה להודעת ווטסאפ</TableHead>}
+                {visibleColumns.employment_status && <TableHead className="min-w-[120px]">שכיר / עצמאי</TableHead>}
+                {visibleColumns.lead_idea && <TableHead className="min-w-[150px]">רעיון (טופס לידים)</TableHead>}
+                {visibleColumns.seller && <TableHead className="min-w-[100px]">מוכר</TableHead>}
+                {visibleColumns.campaign && <TableHead className="min-w-[120px]">קמפיין</TableHead>}
+                {visibleColumns.ad_name && <TableHead className="min-w-[120px]">שם המודעה</TableHead>}
+                {visibleColumns.total_contracts && (
                 <TableHead className="min-w-[100px]">
                   <div className="flex items-center gap-1">
                     <span>סה&quot;כ חוזים</span>
                     {renderSortChevron('total_contracts')}
                   </div>
                 </TableHead>
-                <TableHead className="min-w-[120px]">סטטוס</TableHead>
-                <TableHead className="min-w-[120px]">מצב ליד</TableHead>
+                )}
+                {visibleColumns.status && <TableHead className="min-w-[120px]">סטטוס</TableHead>}
+                {visibleColumns.lead_status && <TableHead className="min-w-[120px]">מצב ליד</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -403,6 +609,7 @@ function GroupSection({
                   groups={groups}
                   purchaseCount={purchaseCounts[person.id] || 0}
                   purchaseTotal={purchaseTotals[person.id] || 0}
+                  visibleColumns={visibleColumns}
                   onUpdate={onUpdatePerson} 
                   isSelected={validSelectedIds.includes(person.id)}
                   onToggleSelect={(checked) => {
@@ -419,7 +626,7 @@ function GroupSection({
               {/* Add New Row */}
               <TableRow className="hover:bg-gray-50/50">
                 <TableCell></TableCell>
-                <TableCell colSpan={16}>
+                <TableCell colSpan={visibleColumnCount}>
                   {isCreating ? (
                     <form onSubmit={handleCreateSubmit} className="flex items-center gap-2">
                       <Input
@@ -468,6 +675,7 @@ function EditableRow({
   groups,
   purchaseCount,
   purchaseTotal,
+  visibleColumns,
   onUpdate,
   isSelected,
   onToggleSelect,
@@ -477,6 +685,7 @@ function EditableRow({
   groups: Group[],
   purchaseCount: number,
   purchaseTotal: number,
+  visibleColumns: Record<ColumnKey, boolean>,
   onUpdate: (id: string, updates: Partial<PersonWithGroup>) => void,
   isSelected: boolean,
   onToggleSelect: (checked: boolean) => void,
@@ -568,9 +777,10 @@ function EditableRow({
       </TableCell>
       
       {/* 1. Name */}
-      {renderCell('full_name', person.full_name)}
+      {visibleColumns.full_name && renderCell('full_name', person.full_name)}
       
       {/* 2. Group */}
+      {visibleColumns.group_id && (
       <TableCell className="p-2 align-middle">
         <Select 
           value={person.group_id || ''} 
@@ -594,14 +804,16 @@ function EditableRow({
           </SelectContent>
         </Select>
       </TableCell>
+      )}
       
       {/* 3. Phone */}
-      {renderCell('phone', person.phone)}
+      {visibleColumns.phone && renderCell('phone', person.phone)}
       
       {/* 4. Email */}
-      {renderCell('email', person.email)}
+      {visibleColumns.email && renderCell('email', person.email)}
       
       {/* 5. Date */}
+      {visibleColumns.sheet_datetime && (
       <TableCell
         className="text-gray-500 p-2 align-middle text-sm cursor-pointer"
         onClick={() => editingField !== 'sheet_datetime' && startDateTimeEdit(getPersonDateTime(person))}
@@ -620,41 +832,44 @@ function EditableRow({
           <span className="block truncate">{new Date(getPersonDateTime(person)).toLocaleString('he-IL')}</span>
         )}
       </TableCell>
+      )}
 
       {/* 6. Score */}
-      {renderCell('score_1_3', person.score_1_3, true)}
+      {visibleColumns.score_1_3 && renderCell('score_1_3', person.score_1_3, true)}
 
       {/* 7. Source */}
-      {renderCell('source', person.source)}
+      {visibleColumns.source && renderCell('source', person.source)}
 
       {/* 8. WhatsApp response */}
-      {renderCell('whatsapp_response', person.whatsapp_response)}
+      {visibleColumns.whatsapp_response && renderCell('whatsapp_response', person.whatsapp_response)}
 
       {/* 9. Employment status */}
-      {renderCell('employment_status', person.employment_status)}
+      {visibleColumns.employment_status && renderCell('employment_status', person.employment_status)}
 
       {/* 10. Lead idea */}
-      {renderCell('lead_idea', person.lead_idea)}
+      {visibleColumns.lead_idea && renderCell('lead_idea', person.lead_idea)}
 
       {/* 11. Seller */}
-      {renderCell('seller', person.seller)}
+      {visibleColumns.seller && renderCell('seller', person.seller)}
 
       {/* 12. Campaign */}
-      {renderCell('campaign', person.campaign)}
+      {visibleColumns.campaign && renderCell('campaign', person.campaign)}
 
       {/* 13. Ad name */}
-      {renderCell('ad_name', person.ad_name)}
+      {visibleColumns.ad_name && renderCell('ad_name', person.ad_name)}
 
       {/* 14. Total contracts (computed from purchases, non-editable) */}
+      {visibleColumns.total_contracts && (
       <TableCell className="p-2 align-middle text-gray-700">
         <span className="block truncate">₪{purchaseTotal.toFixed(2)}</span>
       </TableCell>
+      )}
 
       {/* 15. Status */}
-      {renderCell('status', person.status)}
+      {visibleColumns.status && renderCell('status', person.status)}
 
       {/* 16. Lead status */}
-      {renderCell('lead_status', person.lead_status)}
+      {visibleColumns.lead_status && renderCell('lead_status', person.lead_status)}
 
     </TableRow>
   )
