@@ -39,7 +39,9 @@ export interface Purchase {
   person_id: string;
   service_id: string | null;
   price: number | null;
+  sale_date: string | null;
   payment_method: string | null;
+  installment_plan: string | null;
   payment_status: PaymentStatus | null;
   project_status: ProjectStatus | null;
   created_at: string;
