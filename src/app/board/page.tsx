@@ -1,6 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { BoardClient } from './board-client'
+import { HeaderMenu } from '@/components/header-menu'
+import { canAccessDashboard } from '@/lib/dashboard-access'
 
 export default async function BoardPage() {
   const supabase = await createClient()
@@ -39,16 +41,17 @@ export default async function BoardPage() {
     return <div>Error loading board data</div>
   }
 
+  const userCanAccessDashboard = canAccessDashboard(user.email)
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center">
         <h1 className="text-xl font-bold text-gray-800">CRM Board</h1>
-        <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">{user.email}</span>
-            <form action="/auth/logout" method="post">
-                <button type="submit" className="text-sm text-red-600 hover:text-red-800">Sign out</button>
-            </form>
-        </div>
+        <HeaderMenu
+          userEmail={user.email}
+          canAccessDashboard={userCanAccessDashboard}
+          currentPath="/board"
+        />
       </header>
       
       <main className="p-6">
