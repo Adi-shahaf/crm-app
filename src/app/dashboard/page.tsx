@@ -18,14 +18,7 @@ export default async function DashboardPage() {
     redirect('/board')
   }
 
-  let { data: people, error } = await supabase.from('people').select('total_contracts')
-
-  // Backward compatibility for environments where total_contracts is not present yet.
-  if (error?.message?.includes('total_contracts')) {
-    const fallback = await supabase.from('people').select('id')
-    people = fallback.data?.map(() => ({ total_contracts: 0 })) ?? []
-    error = fallback.error
-  }
+  const { data: purchases, error } = await supabase.from('purchases').select('price')
 
   if (error) {
     console.error('Error loading dashboard data:', {
@@ -37,13 +30,10 @@ export default async function DashboardPage() {
     return <div>Error loading dashboard data</div>
   }
 
-  const totalContractsSold = (people || []).reduce((sum, person: { total_contracts: number | string | null }) => {
-    const contracts =
-      typeof person.total_contracts === 'number'
-        ? person.total_contracts
-        : Number(person.total_contracts || 0)
+  const totalContractsSold = (purchases || []).reduce((sum, purchase: { price: number | string | null }) => {
+    const amount = typeof purchase.price === 'number' ? purchase.price : Number(purchase.price || 0)
 
-    return sum + (Number.isNaN(contracts) ? 0 : contracts)
+    return sum + (Number.isNaN(amount) ? 0 : amount)
   }, 0)
 
   return (
@@ -56,7 +46,9 @@ export default async function DashboardPage() {
       <main className="p-6">
         <section className="max-w-sm rounded-lg border bg-white p-6 shadow-sm">
           <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
-          <p className="mt-2 text-4xl font-bold text-gray-900">{totalContractsSold}</p>
+          <p className="mt-2 text-4xl font-bold text-gray-900">
+            ₪{totalContractsSold.toFixed(2)}
+          </p>
         </section>
       </main>
     </div>
