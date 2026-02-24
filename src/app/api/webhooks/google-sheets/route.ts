@@ -64,32 +64,48 @@ export async function POST(request: Request) {
       external_source_id: rowId,
     }
 
-    const upsertOptions = { onConflict: 'external_source_id' as const }
-    let upsertResponse = await supabase
-      .from('people')
-      .upsert(
-        {
-          ...basePayload,
-          sheet_datetime: sheetDateTime,
-        },
-        upsertOptions
-      )
-      .select()
-
-    // Backward compatibility: if migration for sheet_datetime has not been applied yet.
-    if (upsertResponse.error?.message?.includes('sheet_datetime')) {
-      upsertResponse = await supabase
+    async function insertLead(payload: typeof basePayload & { sheet_datetime?: string | null }) {
+      return supabase
         .from('people')
-        .upsert(basePayload, upsertOptions)
+        .insert(payload)
         .select()
     }
 
-    if (upsertResponse.error) {
-      console.error('Supabase Error:', upsertResponse.error)
-      return NextResponse.json({ error: upsertResponse.error.message }, { status: 500 })
+    let insertPayload: typeof basePayload & { sheet_datetime?: string | null } = {
+      ...basePayload,
+      sheet_datetime: sheetDateTime,
     }
 
-    return NextResponse.json({ success: true, data: upsertResponse.data })
+    let insertResponse = await insertLead(insertPayload)
+
+    // Backward compatibility: if migration for sheet_datetime has not been applied yet.
+    if (insertResponse.error?.message?.includes('sheet_datetime')) {
+      insertPayload = { ...basePayload }
+      insertResponse = await insertLead(insertPayload)
+    }
+
+    // If external_source_id is reused (e.g. sheet row reused), force a unique ID and insert a new lead.
+    if (
+      insertResponse.error &&
+      insertPayload.external_source_id &&
+      (
+        insertResponse.error.code === '23505' ||
+        insertResponse.error.message.toLowerCase().includes('duplicate key')
+      )
+    ) {
+      const uniqueExternalSourceId = `${insertPayload.external_source_id}_${Date.now()}`
+      insertResponse = await insertLead({
+        ...insertPayload,
+        external_source_id: uniqueExternalSourceId,
+      })
+    }
+
+    if (insertResponse.error) {
+      console.error('Supabase Error:', insertResponse.error)
+      return NextResponse.json({ error: insertResponse.error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, data: insertResponse.data })
 
   } catch (error) {
     console.error('Webhook Error:', error)
