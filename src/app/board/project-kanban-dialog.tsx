@@ -10,42 +10,48 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { USER_ROLE_LIST } from '@/lib/user-permissions'
 import { cn } from '@/lib/utils'
 import { PersonWithGroup, ProjectActivityLog, ProjectStage, Purchase } from '@/types/database'
 import { createClient } from '@/utils/supabase/client'
 
 const PROJECT_STAGES: ProjectStage[] = ['future', 'in_progress', 'done']
+type ProjectManagerOption = { email: string; label: string }
+const NO_PROJECT_MANAGER_VALUE = '__none__'
 
 const STAGE_META: Record<
   ProjectStage,
   {
     label: string
-    trackClass: string
-    headerClass: string
+    dotClass: string
     countClass: string
     emptyText: string
   }
 > = {
   future: {
     label: 'Future',
-    trackClass: 'border-slate-300 bg-white',
-    headerClass: 'bg-slate-300 text-slate-900',
-    countClass: 'bg-slate-200 text-slate-900',
+    dotClass: 'bg-slate-500',
+    countClass: 'border-slate-200 bg-slate-100 text-slate-700',
     emptyText: 'Drop a project here',
   },
   in_progress: {
     label: 'In progress',
-    trackClass: 'border-amber-200 bg-white',
-    headerClass: 'bg-amber-200 text-slate-900',
-    countClass: 'bg-amber-100 text-amber-900',
+    dotClass: 'bg-amber-500',
+    countClass: 'border-amber-200 bg-amber-100 text-amber-800',
     emptyText: 'Drop active work here',
   },
   done: {
     label: 'Done',
-    trackClass: 'border-emerald-300 bg-white',
-    headerClass: 'bg-emerald-300 text-slate-900',
-    countClass: 'bg-emerald-100 text-emerald-900',
+    dotClass: 'bg-emerald-500',
+    countClass: 'border-emerald-200 bg-emerald-100 text-emerald-800',
     emptyText: 'Completed projects appear here',
   },
 }
@@ -57,6 +63,7 @@ const normalizeProjectStage = (value: Purchase['project_stage']): ProjectStage =
 
 const formatDateTime = (value: string) => new Date(value).toLocaleString('he-IL')
 const toDateInputValue = (value: string | null) => (value ? value.slice(0, 10) : '')
+const getEmailPrefix = (email: string) => email.split('@')[0] || email
 
 export function ProjectKanbanDialog({
   person,
@@ -77,6 +84,19 @@ export function ProjectKanbanDialog({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null)
   const supabase = createClient()
+  const projectManagerOptions = useMemo<ProjectManagerOption[]>(() => {
+    const uniqueEmails = new Set(
+      USER_ROLE_LIST.map((entry) => entry.email.trim().toLowerCase()).filter(Boolean)
+    )
+
+    if (currentUserEmail?.trim()) {
+      uniqueEmails.add(currentUserEmail.trim().toLowerCase())
+    }
+
+    return Array.from(uniqueEmails)
+      .sort((a, b) => a.localeCompare(b))
+      .map((email) => ({ email, label: getEmailPrefix(email) }))
+  }, [currentUserEmail])
 
   useEffect(() => {
     const loadCurrentUser = async () => {
@@ -278,18 +298,59 @@ export function ProjectKanbanDialog({
     setUpdatingProjectId(null)
   }
 
+  const updateProjectManager = async (projectId: string, nextValue: string | null) => {
+    const previousProjects = projects
+
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              project_manager: nextValue,
+            }
+          : project
+      )
+    )
+    setUpdatingProjectId(projectId)
+    setError('')
+
+    const { data, error: updateError } = await supabase
+      .from('purchases')
+      .update({ project_manager: nextValue })
+      .eq('id', projectId)
+      .select()
+      .single()
+
+    if (updateError) {
+      setProjects(previousProjects)
+      if ((updateError.message || '').includes('project_manager')) {
+        setError('Project manager column is missing. Please run the latest Supabase migration.')
+      } else {
+        setError(`Could not update project manager: ${updateError.message}`)
+      }
+      setUpdatingProjectId(null)
+      return
+    }
+
+    if (data) {
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? data : project)))
+    }
+
+    setUpdatingProjectId(null)
+  }
+
   if (!person) return null
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="flex h-[92vh] w-[99vw] max-w-[1620px] flex-col gap-0 overflow-hidden rounded-2xl border-0 bg-[#0e8aa0] p-0">
-        <DialogHeader className="px-6 pt-1 pb-1">
-          <DialogTitle className="w-full text-center text-3xl font-bold tracking-tight text-white">
+      <DialogContent className="flex h-[92vh] w-[99vw] max-w-[1620px] flex-col gap-0 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 p-0">
+        <DialogHeader className="border-b border-gray-200 bg-white px-6 py-3">
+          <DialogTitle className="w-full text-center text-2xl font-semibold tracking-tight text-slate-900">
             {person.full_name} - Projects
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 px-4 pt-0 pb-1">
+        <div className="flex-1 px-4 py-3">
           <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-3">
               {PROJECT_STAGES.map((stage) => {
                 const columnProjects = projectsByStage[stage]
@@ -300,9 +361,8 @@ export function ProjectKanbanDialog({
                   <section
                     key={stage}
                     className={cn(
-                      'flex h-full min-h-0 flex-col overflow-hidden rounded-xl border shadow-sm transition-all',
-                      stageMeta.trackClass,
-                      isActiveDropZone && 'ring-2 ring-blue-400/60 shadow-md'
+                      'flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-gray-200 bg-white transition-all',
+                      isActiveDropZone && 'ring-2 ring-slate-300'
                     )}
                     onDragOver={(event) => event.preventDefault()}
                     onDragEnter={(event) => {
@@ -319,9 +379,12 @@ export function ProjectKanbanDialog({
                       void moveProject(droppedProjectId, stage)
                     }}
                   >
-                    <div className={cn('flex items-center justify-between px-4 py-2', stageMeta.headerClass)}>
-                      <h3 className="text-xl font-bold">{stageMeta.label}</h3>
-                      <Badge className={cn('rounded-full border-0 px-2 py-0.5 text-xs font-semibold', stageMeta.countClass)}>
+                    <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2.5">
+                      <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                        <span className={cn('h-2.5 w-2.5 rounded-full', stageMeta.dotClass)} />
+                        {stageMeta.label}
+                      </h3>
+                      <Badge className={cn('rounded-full border px-2 py-0.5 text-xs font-semibold', stageMeta.countClass)}>
                         {columnProjects.length} 
                       </Badge>
                     </div>
@@ -343,7 +406,7 @@ export function ProjectKanbanDialog({
                                 setDragOverStage(null)
                               }}
                               className={cn(
-                                'cursor-grab rounded-lg border border-slate-200 bg-slate-100 p-3 shadow-sm transition-opacity active:cursor-grabbing',
+                                'cursor-grab rounded-lg border border-slate-200 bg-white p-3 transition-opacity active:cursor-grabbing',
                                 updatingProjectId === project.id && 'opacity-60'
                               )}
                             >
@@ -351,7 +414,7 @@ export function ProjectKanbanDialog({
                                 <div className="line-clamp-2 text-lg font-bold leading-tight text-slate-900">
                                   {project.service_id?.trim() || 'Unnamed service'}
                                 </div>
-                                <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+                                <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-gray-300" />
                               </div>
 
                               <div className="grid grid-cols-2 gap-2">
@@ -378,6 +441,37 @@ export function ProjectKanbanDialog({
                                   />
                                 </label>
                               </div>
+                              <div className="mt-2">
+                                <label className="text-[10px] font-medium tracking-wide text-slate-500">
+                                  מנהל פרויקטים
+                                </label>
+                                <Select
+                                  value={
+                                    project.project_manager &&
+                                    projectManagerOptions.some((option) => option.email === project.project_manager)
+                                      ? project.project_manager
+                                      : NO_PROJECT_MANAGER_VALUE
+                                  }
+                                  onValueChange={(value) =>
+                                    void updateProjectManager(
+                                      project.id,
+                                      value === NO_PROJECT_MANAGER_VALUE ? null : value
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger className="mt-1 h-7 w-full border-slate-300 bg-white text-[11px] text-slate-700">
+                                    <SelectValue placeholder="בחר מנהל פרויקטים" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={NO_PROJECT_MANAGER_VALUE}>ללא</SelectItem>
+                                    {projectManagerOptions.map((option) => (
+                                      <SelectItem key={option.email} value={option.email}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
 
                             </article>
                           ))
@@ -390,7 +484,7 @@ export function ProjectKanbanDialog({
           </div>
         </div>
 
-        <div className="border-t border-white/30 bg-white/95 p-2.5">
+        <div className="border-t border-gray-200 bg-white p-3">
           <h4 className="mb-2 text-sm font-semibold text-slate-800">Activity Log</h4>
           <ScrollArea className="h-[240px] rounded-lg border border-gray-200 bg-gray-50 p-3">
             {activityLogs.length === 0 ? (

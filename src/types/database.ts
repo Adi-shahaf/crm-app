@@ -39,6 +39,7 @@ export interface Purchase {
   id: string;
   person_id: string;
   service_id: string | null;
+  project_manager: string | null;
   price: number | null;
   sale_date: string | null;
   payment_method: string | null;
