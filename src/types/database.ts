@@ -46,6 +46,8 @@ export interface Purchase {
   payment_status: PaymentStatus | null;
   project_status: ProjectStatus | null;
   project_stage: ProjectStage | null;
+  project_start_date: string | null;
+  project_finish_date: string | null;
   project_started_at: string | null;
   created_at: string;
 }

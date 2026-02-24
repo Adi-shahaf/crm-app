@@ -7,6 +7,7 @@ import {
   BOARD_COLUMNS,
   type BoardColumnKey,
   getBoardColumnAccessByEmail,
+  canAccessSalesTabByEmail,
 } from '@/lib/user-permissions'
 import { 
   Collapsible, 
@@ -50,6 +51,27 @@ const GROUP_NAME_MAP: Record<string, string> = {
 }
 
 const getDisplayGroupName = (name: string) => GROUP_NAME_MAP[name] || name
+const GROUP_DOT_COLOR_CLASS: Record<string, string> = {
+  לידים: 'bg-blue-600',
+  'לידים ישנים': 'bg-blue-600',
+  לקוחות: 'bg-purple-600',
+  'לקוחות גדולים': 'bg-purple-600',
+  'ארכיון לקוחות': 'bg-gray-500',
+  'לא רלוונטי': 'bg-red-600',
+}
+const GROUP_BEZEL_CLASS: Record<string, string> = {
+  לידים: 'border-blue-200 bg-blue-50 text-blue-700',
+  'לידים ישנים': 'border-blue-200 bg-blue-50 text-blue-700',
+  לקוחות: 'border-purple-200 bg-purple-50 text-purple-700',
+  'לקוחות גדולים': 'border-purple-200 bg-purple-50 text-purple-700',
+  'ארכיון לקוחות': 'border-gray-300 bg-gray-50 text-gray-700',
+  'לא רלוונטי': 'border-red-200 bg-red-50 text-red-700',
+}
+
+const getGroupDotColorClass = (groupName: string) =>
+  GROUP_DOT_COLOR_CLASS[getDisplayGroupName(groupName)] || 'bg-blue-500'
+const getGroupBezelClass = (groupName: string) =>
+  GROUP_BEZEL_CLASS[getDisplayGroupName(groupName)] || 'border-blue-200 bg-blue-50 text-blue-700'
 
 const getPersonDateTime = (person: PersonWithGroup) => person.sheet_datetime || person.created_at
 const DELETE_BATCH_SIZE = 100
@@ -168,6 +190,7 @@ export function BoardClient({
 }) {
   const groups = initialGroups
   const columnAccess = useMemo(() => getBoardColumnAccessByEmail(userEmail), [userEmail])
+  const canAccessSalesTab = useMemo(() => canAccessSalesTabByEmail(userEmail), [userEmail])
   const [people, setPeople] = useState(initialPeople)
   const [purchaseCounts, setPurchaseCounts] = useState<Record<string, number>>({})
   const [purchaseTotals, setPurchaseTotals] = useState<Record<string, number>>({})
@@ -451,9 +474,10 @@ export function BoardClient({
           visibleColumns={visibleColumns}
           onOpenDrawer={(person, tab = 'notes') => {
             setSelectedPerson(person)
-            setSelectedDrawerTab(tab)
+            setSelectedDrawerTab(tab === 'purchases' && !canAccessSalesTab ? 'notes' : tab)
           }}
           onOpenProjects={(person) => setSelectedProjectsPerson(person)}
+          canAccessSalesTab={canAccessSalesTab}
         />
       ))}
       <PersonDrawer 
@@ -461,6 +485,7 @@ export function BoardClient({
         isOpen={!!selectedPerson} 
         onClose={() => setSelectedPerson(null)}
         initialTab={selectedDrawerTab}
+        canAccessSalesTab={canAccessSalesTab}
         onPurchaseCreated={(personId, price) => {
           setPurchaseCounts((prev) => ({ ...prev, [personId]: (prev[personId] || 0) + 1 }))
           setPurchaseTotals((prev) => ({ ...prev, [personId]: (prev[personId] || 0) + price }))
@@ -500,6 +525,7 @@ function GroupSection({
   visibleColumns,
   onOpenDrawer,
   onOpenProjects,
+  canAccessSalesTab,
 }: { 
   group: Group, 
   groups: Group[],
@@ -512,7 +538,8 @@ function GroupSection({
   onDeletePeople: (ids: string[]) => void,
   visibleColumns: Record<ColumnKey, boolean>,
   onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
-  onOpenProjects: (person: PersonWithGroup) => void
+  onOpenProjects: (person: PersonWithGroup) => void,
+  canAccessSalesTab: boolean
 }) {
   const [isOpen, setIsOpen] = useState(true)
   const [newItemName, setNewItemName] = useState('')
@@ -613,6 +640,10 @@ function GroupSection({
           </Button>
         </CollapsibleTrigger>
         <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${getGroupDotColorClass(group.name)}`}
+            aria-hidden="true"
+          />
           {getDisplayGroupName(group.name)}
           <Badge variant="secondary" className="font-normal text-xs">{people.length}</Badge>
         </h2>
@@ -721,6 +752,7 @@ function GroupSection({
                   }}
                   onOpenDrawer={onOpenDrawer}
                   onOpenProjects={onOpenProjects}
+                  canAccessSalesTab={canAccessSalesTab}
                 />
               ))}
               
@@ -784,6 +816,7 @@ function EditableRow({
   onToggleSelect,
   onOpenDrawer,
   onOpenProjects,
+  canAccessSalesTab,
 }: { 
   person: PersonWithGroup, 
   groups: Group[],
@@ -796,7 +829,8 @@ function EditableRow({
   isSelected: boolean,
   onToggleSelect: (checked: boolean) => void,
   onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
-  onOpenProjects: (person: PersonWithGroup) => void
+  onOpenProjects: (person: PersonWithGroup) => void,
+  canAccessSalesTab: boolean
 }) {
   const [editingField, setEditingField] = useState<keyof PersonWithGroup | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -885,14 +919,16 @@ function EditableRow({
             <KanbanSquare className="h-4 w-4" />
             <span>{projectCount}</span>
           </button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
-            onClick={() => onOpenDrawer(person, 'purchases')}
-          >
-            <ShoppingCart className="h-4 w-4" />
-            <span>{purchaseCount}</span>
-          </button>
+          {canAccessSalesTab ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
+              onClick={() => onOpenDrawer(person, 'purchases')}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              <span>{purchaseCount}</span>
+            </button>
+          ) : null}
           <button
             type="button"
             className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
@@ -920,10 +956,11 @@ function EditableRow({
           <SelectContent>
             {groups.map(g => (
               <SelectItem key={g.id} value={g.id}>
-                <div className="flex items-center gap-2">
+                <div
+                  className={`inline-flex items-center gap-2 rounded-full border px-2 py-0.5 transition-colors ${getGroupBezelClass(g.name)}`}
+                >
                   <div className={`w-2 h-2 rounded-full ${
-                    g.type === 'customer_segment' ? 'bg-green-500' : 
-                    g.type === 'archive' ? 'bg-red-500' : 'bg-blue-500'
+                    getGroupDotColorClass(g.name)
                   }`} />
                   {getDisplayGroupName(g.name)}
                 </div>

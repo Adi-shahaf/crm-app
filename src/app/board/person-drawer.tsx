@@ -64,6 +64,7 @@ export function PersonDrawer({
   isOpen,
   onClose,
   initialTab = 'notes',
+  canAccessSalesTab = true,
   onPurchaseCreated,
   onPurchaseUpdated,
   onNotesChanged
@@ -72,6 +73,7 @@ export function PersonDrawer({
   isOpen: boolean,
   onClose: () => void,
   initialTab?: 'notes' | 'purchases',
+  canAccessSalesTab?: boolean,
   onPurchaseCreated?: (personId: string, price: number) => void,
   onPurchaseUpdated?: (personId: string, previousPrice: number, nextPrice: number) => void,
   onNotesChanged?: (personId: string, delta: number) => void
@@ -361,6 +363,7 @@ export function PersonDrawer({
     !!newPurchase.saleDate &&
     newPurchase.price !== '' &&
     !Number.isNaN(Number(newPurchase.price.replace(',', '.').trim()))
+  const safeInitialTab = !canAccessSalesTab && initialTab === 'purchases' ? 'notes' : initialTab
 
   if (!person) return null
 
@@ -377,8 +380,8 @@ export function PersonDrawer({
         </SheetHeader>
 
         <Tabs
-          key={`${person.id}-${initialTab}`}
-          defaultValue={initialTab}
+          key={`${person.id}-${safeInitialTab}`}
+          defaultValue={safeInitialTab}
           className="flex-1 flex flex-col overflow-hidden"
         >
           <div className="px-6 pt-2 border-b">
@@ -389,12 +392,14 @@ export function PersonDrawer({
               >
                 Notes ({notes.length})
               </TabsTrigger>
-              <TabsTrigger
-                value="purchases"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 pb-2 font-medium"
-              >
-                Purchases ({purchases.length})
-              </TabsTrigger>
+              {canAccessSalesTab ? (
+                <TabsTrigger
+                  value="purchases"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 pb-2 font-medium"
+                >
+                  Purchases ({purchases.length})
+                </TabsTrigger>
+              ) : null}
             </TabsList>
           </div>
 
@@ -454,169 +459,171 @@ export function PersonDrawer({
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="purchases" className="flex-1 flex flex-col p-0 m-0 overflow-hidden">
-            <div className="p-4 border-b bg-white">
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  variant={isPurchaseFormOpen ? "outline" : "default"}
-                  onClick={() => {
-                    setPurchaseError('')
-                    setIsPurchaseFormOpen((prev) => !prev)
-                  }}
-                >
-                  {isPurchaseFormOpen ? 'סגור' : 'הוספת רכישה'}
-                </Button>
+          {canAccessSalesTab ? (
+            <TabsContent value="purchases" className="flex-1 flex flex-col p-0 m-0 overflow-hidden">
+              <div className="p-4 border-b bg-white">
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant={isPurchaseFormOpen ? "outline" : "default"}
+                    onClick={() => {
+                      setPurchaseError('')
+                      setIsPurchaseFormOpen((prev) => !prev)
+                    }}
+                  >
+                    {isPurchaseFormOpen ? 'סגור' : 'הוספת רכישה'}
+                  </Button>
+                </div>
+
+                {isPurchaseFormOpen ? (
+                  <div className="mt-3 space-y-3">
+                    <Input
+                      placeholder="שם השירות"
+                      value={newPurchase.serviceName}
+                      onChange={(e) => setNewPurchase((prev) => ({ ...prev, serviceName: e.target.value }))}
+                    />
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="מחיר"
+                      value={newPurchase.price}
+                      onChange={(e) => setNewPurchase((prev) => ({ ...prev, price: e.target.value }))}
+                    />
+                    <Input
+                      type="date"
+                      value={newPurchase.saleDate}
+                      onChange={(e) => setNewPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
+                    />
+                    <Select
+                      value={newPurchase.paymentMethod}
+                      onValueChange={(value) => setNewPurchase((prev) => ({ ...prev, paymentMethod: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="אופן התשלום" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_METHOD_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="הסדר תשלומים (טקסט חופשי)"
+                      value={newPurchase.installmentPlan}
+                      onChange={(e) => setNewPurchase((prev) => ({ ...prev, installmentPlan: e.target.value }))}
+                    />
+                    <div className="flex justify-end">
+                      <Button size="sm" onClick={handleAddPurchase} disabled={!canCreatePurchase || isCreatingPurchase}>
+                        יצירת רכישה
+                      </Button>
+                    </div>
+                    {purchaseError ? (
+                      <p className="text-sm text-red-600">{purchaseError}</p>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
-              {isPurchaseFormOpen ? (
-                <div className="mt-3 space-y-3">
-                  <Input
-                    placeholder="שם השירות"
-                    value={newPurchase.serviceName}
-                    onChange={(e) => setNewPurchase((prev) => ({ ...prev, serviceName: e.target.value }))}
-                  />
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="מחיר"
-                    value={newPurchase.price}
-                    onChange={(e) => setNewPurchase((prev) => ({ ...prev, price: e.target.value }))}
-                  />
-                  <Input
-                    type="date"
-                    value={newPurchase.saleDate}
-                    onChange={(e) => setNewPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
-                  />
-                  <Select
-                    value={newPurchase.paymentMethod}
-                    onValueChange={(value) => setNewPurchase((prev) => ({ ...prev, paymentMethod: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="אופן התשלום" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAYMENT_METHOD_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="הסדר תשלומים (טקסט חופשי)"
-                    value={newPurchase.installmentPlan}
-                    onChange={(e) => setNewPurchase((prev) => ({ ...prev, installmentPlan: e.target.value }))}
-                  />
-                  <div className="flex justify-end">
-                    <Button size="sm" onClick={handleAddPurchase} disabled={!canCreatePurchase || isCreatingPurchase}>
-                      יצירת רכישה
-                    </Button>
-                  </div>
-                  {purchaseError ? (
-                    <p className="text-sm text-red-600">{purchaseError}</p>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
-            <ScrollArea className="flex-1 p-6 bg-gray-50">
-              {isLoading ? (
-                <p className="text-sm text-gray-500 text-center py-4">Loading purchases...</p>
-              ) : purchases.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-8">No purchases recorded yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {purchases.map((p) => (
-                    <div key={p.id} className="p-4 border rounded-lg bg-white shadow-sm space-y-1">
-                      {editingPurchaseId === p.id ? (
-                        <div className="space-y-3">
-                          <Input
-                            placeholder="שם השירות"
-                            value={editingPurchase.serviceName}
-                            onChange={(e) => setEditingPurchase((prev) => ({ ...prev, serviceName: e.target.value }))}
-                          />
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="מחיר"
-                            value={editingPurchase.price}
-                            onChange={(e) => setEditingPurchase((prev) => ({ ...prev, price: e.target.value }))}
-                          />
-                          <Input
-                            type="date"
-                            value={editingPurchase.saleDate}
-                            onChange={(e) => setEditingPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
-                          />
-                          <Select
-                            value={editingPurchase.paymentMethod}
-                            onValueChange={(value) => setEditingPurchase((prev) => ({ ...prev, paymentMethod: value }))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="אופן התשלום" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PAYMENT_METHOD_OPTIONS.map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Input
-                            placeholder="הסדר תשלומים (טקסט חופשי)"
-                            value={editingPurchase.installmentPlan}
-                            onChange={(e) => setEditingPurchase((prev) => ({ ...prev, installmentPlan: e.target.value }))}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={handleCancelEditPurchase}
-                              disabled={isUpdatingPurchaseId === p.id}
+              <ScrollArea className="flex-1 p-6 bg-gray-50">
+                {isLoading ? (
+                  <p className="text-sm text-gray-500 text-center py-4">Loading purchases...</p>
+                ) : purchases.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No purchases recorded yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {purchases.map((p) => (
+                      <div key={p.id} className="p-4 border rounded-lg bg-white shadow-sm space-y-1">
+                        {editingPurchaseId === p.id ? (
+                          <div className="space-y-3">
+                            <Input
+                              placeholder="שם השירות"
+                              value={editingPurchase.serviceName}
+                              onChange={(e) => setEditingPurchase((prev) => ({ ...prev, serviceName: e.target.value }))}
+                            />
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="מחיר"
+                              value={editingPurchase.price}
+                              onChange={(e) => setEditingPurchase((prev) => ({ ...prev, price: e.target.value }))}
+                            />
+                            <Input
+                              type="date"
+                              value={editingPurchase.saleDate}
+                              onChange={(e) => setEditingPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
+                            />
+                            <Select
+                              value={editingPurchase.paymentMethod}
+                              onValueChange={(value) => setEditingPurchase((prev) => ({ ...prev, paymentMethod: value }))}
                             >
-                              ביטול
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => handleSavePurchaseEdit(p)}
-                              disabled={isUpdatingPurchaseId === p.id}
-                            >
-                              {isUpdatingPurchaseId === p.id ? 'שומר...' : 'שמירה'}
-                            </Button>
-                          </div>
-                          {editPurchaseError ? (
-                            <p className="text-sm text-red-600">{editPurchaseError}</p>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex justify-between items-center gap-3">
-                            <div className="font-medium text-gray-900">{p.service_id || 'Unknown Service'}</div>
-                            <div className="font-semibold text-gray-900">
-                              ₪{p.price?.toFixed(2) || '0.00'}
+                              <SelectTrigger>
+                                <SelectValue placeholder="אופן התשלום" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {PAYMENT_METHOD_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              placeholder="הסדר תשלומים (טקסט חופשי)"
+                              value={editingPurchase.installmentPlan}
+                              onChange={(e) => setEditingPurchase((prev) => ({ ...prev, installmentPlan: e.target.value }))}
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCancelEditPurchase}
+                                disabled={isUpdatingPurchaseId === p.id}
+                              >
+                                ביטול
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => handleSavePurchaseEdit(p)}
+                                disabled={isUpdatingPurchaseId === p.id}
+                              >
+                                {isUpdatingPurchaseId === p.id ? 'שומר...' : 'שמירה'}
+                              </Button>
                             </div>
+                            {editPurchaseError ? (
+                              <p className="text-sm text-red-600">{editPurchaseError}</p>
+                            ) : null}
                           </div>
-                          <div className="text-sm text-gray-500">תאריך מכירה: {p.sale_date ? new Date(p.sale_date).toLocaleDateString() : '-'}</div>
-                          <div className="text-sm text-gray-500">אופן תשלום: {p.payment_method || '-'}</div>
-                          <div className="text-sm text-gray-500">הסדר תשלומים: {p.installment_plan || '-'}</div>
-                          <div className="flex justify-end pt-2">
-                            <Button type="button" size="sm" variant="outline" onClick={() => startEditingPurchase(p)}>
-                              עריכה
-                            </Button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-          </TabsContent>
+                        ) : (
+                          <>
+                            <div className="flex justify-between items-center gap-3">
+                              <div className="font-medium text-gray-900">{p.service_id || 'Unknown Service'}</div>
+                              <div className="font-semibold text-gray-900">
+                                ₪{p.price?.toFixed(2) || '0.00'}
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-500">תאריך מכירה: {p.sale_date ? new Date(p.sale_date).toLocaleDateString() : '-'}</div>
+                            <div className="text-sm text-gray-500">אופן תשלום: {p.payment_method || '-'}</div>
+                            <div className="text-sm text-gray-500">הסדר תשלומים: {p.installment_plan || '-'}</div>
+                            <div className="flex justify-end pt-2">
+                              <Button type="button" size="sm" variant="outline" onClick={() => startEditingPurchase(p)}>
+                                עריכה
+                              </Button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          ) : null}
         </Tabs>
       </SheetContent>
     </Sheet>
