@@ -59,6 +59,8 @@ const getSupabaseErrorMessage = (error: unknown) => {
   return 'Unexpected error type'
 }
 
+const toTelHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, '')}`
+
 export function PersonDrawer({
   person,
   isOpen,
@@ -401,7 +403,13 @@ export function PersonDrawer({
           <SheetDescription className="flex items-center gap-2">
             <span>{person.email || 'No email'}</span>
             <span>•</span>
-            <span>{person.phone || 'No phone'}</span>
+            {person.phone ? (
+              <a href={toTelHref(person.phone)} className="text-blue-600 hover:underline">
+                {person.phone}
+              </a>
+            ) : (
+              <span>No phone</span>
+            )}
           </SheetDescription>
         </SheetHeader>
 
