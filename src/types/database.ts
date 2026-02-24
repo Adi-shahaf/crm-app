@@ -1,6 +1,7 @@
 export type GroupType = 'lead_stage' | 'customer_segment' | 'archive';
 export type PaymentStatus = 'pending' | 'paid' | 'refunded';
 export type ProjectStatus = 'active' | 'done' | 'on_hold';
+export type ProjectStage = 'future' | 'in_progress' | 'done';
 export type NoteType = 'call' | 'email' | 'meeting' | 'note';
 
 export interface Group {
@@ -44,6 +45,20 @@ export interface Purchase {
   installment_plan: string | null;
   payment_status: PaymentStatus | null;
   project_status: ProjectStatus | null;
+  project_stage: ProjectStage | null;
+  project_started_at: string | null;
+  created_at: string;
+}
+
+export interface ProjectActivityLog {
+  id: string;
+  person_id: string;
+  purchase_id: string;
+  from_stage: ProjectStage;
+  to_stage: ProjectStage;
+  moved_at: string;
+  created_by: string | null;
+  created_by_name: string | null;
   created_at: string;
 }
 

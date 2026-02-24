@@ -250,13 +250,18 @@ export function PersonDrawer({
         installment_plan: newPurchase.installmentPlan.trim() || null,
         sale_date: newPurchase.saleDate,
         payment_status: 'pending',
+        project_stage: 'future',
       }])
       .select()
       .single()
 
     if (error) {
       const message = getSupabaseErrorMessage(error)
-      if (message.includes('sale_date') || message.includes('installment_plan')) {
+      if (
+        message.includes('sale_date') ||
+        message.includes('installment_plan') ||
+        message.includes('project_stage')
+      ) {
         setPurchaseError('השינויים במסד הנתונים לא עודכנו עדיין. צריך להריץ את המיגרציה החדשה.')
       } else {
         setPurchaseError(`שמירת רכישה נכשלה: ${message}`)

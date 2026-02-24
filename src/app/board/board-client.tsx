@@ -21,7 +21,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare, KanbanSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,7 @@ import {
   SelectValue 
 } from "@/components/ui/select"
 import { PersonDrawer } from './person-drawer'
+import { ProjectKanbanDialog } from './project-kanban-dialog'
 
 type SortField = 'full_name' | 'sheet_datetime' | 'score_1_3' | 'total_contracts'
 type SortDirection = 'asc' | 'desc'
@@ -172,6 +173,7 @@ export function BoardClient({
   const [purchaseTotals, setPurchaseTotals] = useState<Record<string, number>>({})
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({})
   const [selectedPerson, setSelectedPerson] = useState<PersonWithGroup | null>(null)
+  const [selectedProjectsPerson, setSelectedProjectsPerson] = useState<PersonWithGroup | null>(null)
   const [selectedDrawerTab, setSelectedDrawerTab] = useState<DrawerTab>('notes')
   const [searchTerm, setSearchTerm] = useState('')
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() =>
@@ -451,6 +453,7 @@ export function BoardClient({
             setSelectedPerson(person)
             setSelectedDrawerTab(tab)
           }}
+          onOpenProjects={(person) => setSelectedProjectsPerson(person)}
         />
       ))}
       <PersonDrawer 
@@ -475,6 +478,11 @@ export function BoardClient({
           }))
         }}
       />
+      <ProjectKanbanDialog
+        person={selectedProjectsPerson}
+        isOpen={!!selectedProjectsPerson}
+        onClose={() => setSelectedProjectsPerson(null)}
+      />
     </div>
   )
 }
@@ -490,7 +498,8 @@ function GroupSection({
   onCreatePerson,
   onDeletePeople,
   visibleColumns,
-  onOpenDrawer
+  onOpenDrawer,
+  onOpenProjects,
 }: { 
   group: Group, 
   groups: Group[],
@@ -502,7 +511,8 @@ function GroupSection({
   onCreatePerson: (groupId: string, name: string) => void,
   onDeletePeople: (ids: string[]) => void,
   visibleColumns: Record<ColumnKey, boolean>,
-  onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void
+  onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
+  onOpenProjects: (person: PersonWithGroup) => void
 }) {
   const [isOpen, setIsOpen] = useState(true)
   const [newItemName, setNewItemName] = useState('')
@@ -695,6 +705,7 @@ function GroupSection({
                   key={person.id} 
                   person={person} 
                   groups={groups}
+                  projectCount={purchaseCounts[person.id] || 0}
                   purchaseCount={purchaseCounts[person.id] || 0}
                   purchaseTotal={purchaseTotals[person.id] || 0}
                   noteCount={noteCounts[person.id] || 0}
@@ -709,6 +720,7 @@ function GroupSection({
                     )
                   }}
                   onOpenDrawer={onOpenDrawer}
+                  onOpenProjects={onOpenProjects}
                 />
               ))}
               
@@ -762,6 +774,7 @@ function GroupSection({
 function EditableRow({ 
   person, 
   groups,
+  projectCount,
   purchaseCount,
   purchaseTotal,
   noteCount,
@@ -769,10 +782,12 @@ function EditableRow({
   onUpdate,
   isSelected,
   onToggleSelect,
-  onOpenDrawer
+  onOpenDrawer,
+  onOpenProjects,
 }: { 
   person: PersonWithGroup, 
   groups: Group[],
+  projectCount: number,
   purchaseCount: number,
   purchaseTotal: number,
   noteCount: number,
@@ -780,7 +795,8 @@ function EditableRow({
   onUpdate: (id: string, updates: Partial<PersonWithGroup>) => void,
   isSelected: boolean,
   onToggleSelect: (checked: boolean) => void,
-  onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void
+  onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
+  onOpenProjects: (person: PersonWithGroup) => void
 }) {
   const [editingField, setEditingField] = useState<keyof PersonWithGroup | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -860,6 +876,15 @@ function EditableRow({
             <Maximize2 className="h-3.5 w-3.5" />
             <span className="text-xs">פתח</span>
           </Button>
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
+            onClick={() => onOpenProjects(person)}
+            title="Projects"
+          >
+            <KanbanSquare className="h-4 w-4" />
+            <span>{projectCount}</span>
+          </button>
           <button
             type="button"
             className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
