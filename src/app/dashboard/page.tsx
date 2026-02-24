@@ -18,14 +18,26 @@ export default async function DashboardPage() {
     redirect('/board')
   }
 
-  const { data: people, error } = await supabase.from('people').select('total_contracts')
+  let { data: people, error } = await supabase.from('people').select('total_contracts')
+
+  // Backward compatibility for environments where total_contracts is not present yet.
+  if (error?.message?.includes('total_contracts')) {
+    const fallback = await supabase.from('people').select('id')
+    people = fallback.data?.map(() => ({ total_contracts: 0 })) ?? []
+    error = fallback.error
+  }
 
   if (error) {
-    console.error('Error loading dashboard data:', error)
+    console.error('Error loading dashboard data:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    })
     return <div>Error loading dashboard data</div>
   }
 
-  const totalContractsSold = (people || []).reduce((sum, person) => {
+  const totalContractsSold = (people || []).reduce((sum, person: { total_contracts: number | string | null }) => {
     const contracts =
       typeof person.total_contracts === 'number'
         ? person.total_contracts
@@ -50,4 +62,3 @@ export default async function DashboardPage() {
     </div>
   )
 }
-
