@@ -27,9 +27,17 @@ const USER_ROLE_BY_EMAIL: Record<string, UserRole> = {
   'yuval@synergytech.co.il': 'project_manager',
 }
 
+export const USER_ROLE_LIST = Object.entries(USER_ROLE_BY_EMAIL)
+  .map(([email, role]) => ({ email, role }))
+  .sort((a, b) => a.email.localeCompare(b.email))
+
 const RESTRICTED_BOARD_COLUMNS_BY_ROLE: Record<UserRole, readonly BoardColumnKey[]> = {
   admin: [],
   project_manager: ['source', 'employment_status', 'total_contracts'],
+}
+const SALES_TAB_ACCESS_BY_ROLE: Record<UserRole, boolean> = {
+  admin: true,
+  project_manager: false,
 }
 
 const normalizeEmail = (email: string | null | undefined) =>
@@ -58,3 +66,8 @@ export const getBoardColumnAccessByRole = (
 
 export const getBoardColumnAccessByEmail = (email: string | null | undefined) =>
   getBoardColumnAccessByRole(getUserRoleByEmail(email))
+
+export const canAccessSalesTabByRole = (role: UserRole) => SALES_TAB_ACCESS_BY_ROLE[role]
+
+export const canAccessSalesTabByEmail = (email: string | null | undefined) =>
+  canAccessSalesTabByRole(getUserRoleByEmail(email))

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { HeaderMenu } from '@/components/header-menu'
 import { canAccessDashboard } from '@/lib/dashboard-access'
+import { USER_ROLE_LIST } from '@/lib/user-permissions'
 import { createClient } from '@/utils/supabase/server'
 
 export default async function DashboardPage() {
@@ -112,6 +113,18 @@ export default async function DashboardPage() {
             )}
           </section>
         </div>
+
+        <section className="mt-6 rounded-lg border bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-800">Users & Roles</h2>
+          <div className="mt-3 space-y-2">
+            {USER_ROLE_LIST.map((entry) => (
+              <div key={entry.email} className="flex items-center justify-between text-sm">
+                <span className="text-gray-700">{entry.email}</span>
+                <span className="text-gray-500">{entry.role}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       </main>
     </div>
   )
