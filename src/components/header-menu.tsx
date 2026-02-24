@@ -21,7 +21,8 @@ type HeaderMenuProps = {
 
 export function HeaderMenu({ userEmail, canAccessDashboard, currentPath }: HeaderMenuProps) {
   const userRole = getUserRoleByEmail(userEmail)
-  const roleLabel = userRole === 'project_manager' ? 'Project manager' : 'Admin'
+  const roleLabel =
+    userRole === 'project_manager' ? 'Project manager' : userRole === 'sales' ? 'Sales' : 'Admin'
   const userDescription = userEmail ? `${userEmail} (${roleLabel})` : 'Signed in user'
 
   return (

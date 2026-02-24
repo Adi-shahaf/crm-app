@@ -3,6 +3,11 @@ import { redirect } from 'next/navigation'
 import { BoardClient } from './board-client'
 import { HeaderMenu } from '@/components/header-menu'
 import { canAccessDashboard } from '@/lib/dashboard-access'
+import {
+  filterGroupsByEmailAccess,
+  filterPeopleByEmailAccess,
+  filterPeopleByGroupAccess,
+} from '@/lib/user-permissions'
 
 export default async function BoardPage() {
   const supabase = await createClient()
@@ -42,6 +47,10 @@ export default async function BoardPage() {
   }
 
   const userCanAccessDashboard = canAccessDashboard(user.email)
+  const visibleGroups = filterGroupsByEmailAccess(groups || [], user.email)
+  const visibleGroupIds = new Set(visibleGroups.map((group) => group.id))
+  const roleFilteredPeople = filterPeopleByEmailAccess(people || [], user.email)
+  const visiblePeople = filterPeopleByGroupAccess(roleFilteredPeople, visibleGroupIds)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -56,8 +65,8 @@ export default async function BoardPage() {
       
       <main className="p-6">
         <BoardClient
-          initialGroups={groups || []}
-          initialPeople={people || []}
+          initialGroups={visibleGroups}
+          initialPeople={visiblePeople}
           userEmail={user.email}
         />
       </main>

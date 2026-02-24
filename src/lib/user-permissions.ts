@@ -14,17 +14,16 @@ export const BOARD_COLUMNS = [
   'ad_name',
   'total_contracts',
   'status',
-  'lead_status',
 ] as const
 
 export type BoardColumnKey = (typeof BOARD_COLUMNS)[number]
-export type UserRole = 'admin' | 'project_manager'
+export type UserRole = 'admin' | 'project_manager' | 'sales'
 
 const DEFAULT_USER_ROLE: UserRole = 'admin'
 
 const USER_ROLE_BY_EMAIL: Record<string, UserRole> = {
   'adi@synergytech.co.il': 'admin',
-  'elattiass@gmail.com': 'project_manager',
+  'elattiass@gmail.com': 'sales',
   'shai@synergytech.co.il': 'project_manager',
   'yuval@synergytech.co.il': 'project_manager',
 }
@@ -35,12 +34,37 @@ export const USER_ROLE_LIST = Object.entries(USER_ROLE_BY_EMAIL)
 
 const RESTRICTED_BOARD_COLUMNS_BY_ROLE: Record<UserRole, readonly BoardColumnKey[]> = {
   admin: [],
-  project_manager: ['source', 'employment_status', 'total_contracts'],
+  project_manager: [
+    'score_1_3',
+    'source',
+    'whatsapp_response',
+    'employment_status',
+    'lead_idea',
+    'seller',
+    'campaign',
+    'ad_name',
+    'total_contracts',
+  ],
+  sales: [],
 }
 const SALES_TAB_ACCESS_BY_ROLE: Record<UserRole, boolean> = {
   admin: true,
   project_manager: false,
+  sales: true,
 }
+const PROJECT_KANBAN_ACCESS_BY_ROLE: Record<UserRole, boolean> = {
+  admin: true,
+  project_manager: true,
+  sales: false,
+}
+const PROJECT_MANAGER_ALLOWED_GROUP_NAMES = new Set([
+  'לקוחות',
+  'לקוחות גדולים',
+  'ארכיון לקוחות',
+  'Contacted',
+  'Meeting Scheduled',
+  'Lost / Archive',
+])
 
 const normalizeEmail = (email: string | null | undefined) =>
   email?.trim().toLowerCase() ?? null
@@ -73,3 +97,37 @@ export const canAccessSalesTabByRole = (role: UserRole) => SALES_TAB_ACCESS_BY_R
 
 export const canAccessSalesTabByEmail = (email: string | null | undefined) =>
   canAccessSalesTabByRole(getUserRoleByEmail(email))
+
+export const canAccessProjectKanbanByRole = (role: UserRole) =>
+  PROJECT_KANBAN_ACCESS_BY_ROLE[role]
+
+export const canAccessProjectKanbanByEmail = (email: string | null | undefined) =>
+  canAccessProjectKanbanByRole(getUserRoleByEmail(email))
+
+export const filterPeopleByEmailAccess = <T extends { seller: string | null }>(
+  people: T[],
+  email: string | null | undefined
+) => {
+  const role = getUserRoleByEmail(email)
+  if (role !== 'sales') return people
+
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return []
+
+  return people.filter((person) => normalizeEmail(person.seller) === normalizedEmail)
+}
+
+export const filterGroupsByEmailAccess = <T extends { name: string }>(
+  groups: T[],
+  email: string | null | undefined
+) => {
+  const role = getUserRoleByEmail(email)
+  if (role !== 'project_manager') return groups
+
+  return groups.filter((group) => PROJECT_MANAGER_ALLOWED_GROUP_NAMES.has(group.name))
+}
+
+export const filterPeopleByGroupAccess = <T extends { group_id: string | null }>(
+  people: T[],
+  allowedGroupIds: Set<string>
+) => people.filter((person) => !!person.group_id && allowedGroupIds.has(person.group_id))
