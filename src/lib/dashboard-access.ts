@@ -1,5 +1,4 @@
-const DASHBOARD_ALLOWED_EMAIL = 'adi@synergytech.co.il'
+import { getUserRoleByEmail } from '@/lib/user-permissions'
 
 export const canAccessDashboard = (email: string | null | undefined) =>
-  email?.toLowerCase() === DASHBOARD_ALLOWED_EMAIL
-
+  getUserRoleByEmail(email) === 'admin'

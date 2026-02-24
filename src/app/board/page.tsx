@@ -55,7 +55,11 @@ export default async function BoardPage() {
       </header>
       
       <main className="p-6">
-        <BoardClient initialGroups={groups || []} initialPeople={people || []} />
+        <BoardClient
+          initialGroups={groups || []}
+          initialPeople={people || []}
+          userEmail={user.email}
+        />
       </main>
     </div>
   )

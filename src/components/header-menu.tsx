@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { getUserRoleByEmail } from '@/lib/user-permissions'
 import {
   Sheet,
   SheetContent,
@@ -19,6 +20,10 @@ type HeaderMenuProps = {
 }
 
 export function HeaderMenu({ userEmail, canAccessDashboard, currentPath }: HeaderMenuProps) {
+  const userRole = getUserRoleByEmail(userEmail)
+  const roleLabel = userRole === 'project_manager' ? 'Project manager' : 'Admin'
+  const userDescription = userEmail ? `${userEmail} (${roleLabel})` : 'Signed in user'
+
   return (
     <Sheet>
       <SheetTrigger asChild>
@@ -29,7 +34,7 @@ export function HeaderMenu({ userEmail, canAccessDashboard, currentPath }: Heade
       <SheetContent side="right">
         <SheetHeader>
           <SheetTitle>Menu</SheetTitle>
-          <SheetDescription>{userEmail || 'Signed in user'}</SheetDescription>
+          <SheetDescription>{userDescription}</SheetDescription>
         </SheetHeader>
 
         <div className="flex h-full flex-col justify-between p-4 pt-0">
@@ -66,4 +71,3 @@ export function HeaderMenu({ userEmail, canAccessDashboard, currentPath }: Heade
     </Sheet>
   )
 }
-

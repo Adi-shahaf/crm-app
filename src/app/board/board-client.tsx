@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Group, PersonWithGroup } from '@/types/database'
+import {
+  BOARD_COLUMNS,
+  type BoardColumnKey,
+  getBoardColumnAccessByEmail,
+} from '@/lib/user-permissions'
 import { 
   Collapsible, 
   CollapsibleContent, 
@@ -33,23 +38,7 @@ type SortField = 'full_name' | 'sheet_datetime' | 'score_1_3' | 'total_contracts
 type SortDirection = 'asc' | 'desc'
 type SortConfig = { field: SortField; direction: SortDirection } | null
 type DrawerTab = 'notes' | 'purchases'
-type ColumnKey =
-  | 'full_name'
-  | 'group_id'
-  | 'phone'
-  | 'email'
-  | 'sheet_datetime'
-  | 'score_1_3'
-  | 'source'
-  | 'whatsapp_response'
-  | 'employment_status'
-  | 'lead_idea'
-  | 'seller'
-  | 'campaign'
-  | 'ad_name'
-  | 'total_contracts'
-  | 'status'
-  | 'lead_status'
+type ColumnKey = BoardColumnKey
 
 const GROUP_NAME_MAP: Record<string, string> = {
   'New Leads': 'לידים',
@@ -135,14 +124,49 @@ const SORT_FIELD_TO_COLUMN: Record<SortField, ColumnKey> = {
   total_contracts: 'total_contracts',
 }
 
+const applyColumnAccess = (
+  columns: Record<ColumnKey, boolean>,
+  access: Record<ColumnKey, boolean>
+) =>
+  BOARD_COLUMNS.reduce(
+    (next, column) => {
+      next[column] = access[column] ? columns[column] : false
+      return next
+    },
+    {} as Record<ColumnKey, boolean>
+  )
+
+const buildMinimalVisibleColumns = (access: Record<ColumnKey, boolean>) => {
+  const next = BOARD_COLUMNS.reduce(
+    (columns, column) => {
+      columns[column] = false
+      return columns
+    },
+    {} as Record<ColumnKey, boolean>
+  )
+
+  if (access.full_name) {
+    next.full_name = true
+    return next
+  }
+
+  const firstVisibleColumn = BOARD_COLUMNS.find((column) => access[column])
+  if (firstVisibleColumn) next[firstVisibleColumn] = true
+
+  return next
+}
+
 export function BoardClient({ 
   initialGroups, 
-  initialPeople 
+  initialPeople,
+  userEmail,
 }: { 
   initialGroups: Group[], 
-  initialPeople: PersonWithGroup[] 
+  initialPeople: PersonWithGroup[],
+  userEmail: string | null | undefined,
 }) {
   const groups = initialGroups
+  const columnAccess = useMemo(() => getBoardColumnAccessByEmail(userEmail), [userEmail])
   const [people, setPeople] = useState(initialPeople)
   const [purchaseCounts, setPurchaseCounts] = useState<Record<string, number>>({})
   const [purchaseTotals, setPurchaseTotals] = useState<Record<string, number>>({})
@@ -150,7 +174,9 @@ export function BoardClient({
   const [selectedPerson, setSelectedPerson] = useState<PersonWithGroup | null>(null)
   const [selectedDrawerTab, setSelectedDrawerTab] = useState<DrawerTab>('notes')
   const [searchTerm, setSearchTerm] = useState('')
-  const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() => ({ ...DEFAULT_VISIBLE_COLUMNS }))
+  const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() =>
+    applyColumnAccess(DEFAULT_VISIBLE_COLUMNS, columnAccess)
+  )
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
   const columnsMenuRef = useRef<HTMLDivElement | null>(null)
   const supabase = createClient()
@@ -301,8 +327,13 @@ export function BoardClient({
     [people, searchTerm]
   )
   const visibleColumnCount = useMemo(
-    () => Object.values(visibleColumns).filter(Boolean).length,
+    () => BOARD_COLUMNS.filter((column) => visibleColumns[column]).length,
     [visibleColumns]
+  )
+  const visibleAllowedColumnCount = useMemo(
+    () =>
+      BOARD_COLUMNS.filter((column) => columnAccess[column] && visibleColumns[column]).length,
+    [columnAccess, visibleColumns]
   )
   const visibleGroups = searchTerm.trim()
     ? groups.filter((group) => filteredPeople.some((person) => person.group_id === group.id))
@@ -323,16 +354,22 @@ export function BoardClient({
 
   const toggleColumnVisibility = (column: ColumnKey) => {
     setVisibleColumns((prev) => {
-      const currentlyVisibleCount = Object.values(prev).filter(Boolean).length
-      if (prev[column] && currentlyVisibleCount === 1) return prev
-      return { ...prev, [column]: !prev[column] }
+      if (!columnAccess[column]) return prev
+
+      const currentlyVisibleAllowedCount = BOARD_COLUMNS.reduce(
+        (count, key) => count + (columnAccess[key] && prev[key] ? 1 : 0),
+        0
+      )
+
+      if (prev[column] && currentlyVisibleAllowedCount === 1) return prev
+      return applyColumnAccess({ ...prev, [column]: !prev[column] }, columnAccess)
     })
   }
 
   const setAllColumnsVisible = (value: boolean) => {
     const next = value
-      ? { ...DEFAULT_VISIBLE_COLUMNS }
-      : { ...DEFAULT_VISIBLE_COLUMNS, full_name: true, group_id: false, phone: false, email: false, sheet_datetime: false, score_1_3: false, source: false, whatsapp_response: false, employment_status: false, lead_idea: false, seller: false, campaign: false, ad_name: false, total_contracts: false, status: false, lead_status: false }
+      ? applyColumnAccess(DEFAULT_VISIBLE_COLUMNS, columnAccess)
+      : buildMinimalVisibleColumns(columnAccess)
     setVisibleColumns(next)
   }
 
@@ -373,15 +410,19 @@ export function BoardClient({
                 </button>
               </div>
               <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
-                {(Object.keys(COLUMN_LABELS) as ColumnKey[]).map((column) => {
+                {BOARD_COLUMNS.map((column) => {
                   const checked = visibleColumns[column]
-                  const isOnlyVisible = checked && visibleColumnCount === 1
+                  const canAccessColumn = columnAccess[column]
+                  const isOnlyVisible = canAccessColumn && checked && visibleAllowedColumnCount === 1
                   return (
-                    <label key={column} className="flex items-center gap-2 text-sm text-gray-700">
+                    <label
+                      key={column}
+                      className={`flex items-center gap-2 text-sm ${canAccessColumn ? 'text-gray-700' : 'text-gray-400'}`}
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
-                        disabled={isOnlyVisible}
+                        disabled={!canAccessColumn || isOnlyVisible}
                         onChange={() => toggleColumnVisibility(column)}
                       />
                       <span>{COLUMN_LABELS[column]}</span>
