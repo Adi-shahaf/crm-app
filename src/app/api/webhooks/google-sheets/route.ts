@@ -26,7 +26,9 @@ export async function POST(request: Request) {
       name, 
       phone, 
       email, 
-      source = 'Google Sheets', 
+      source,
+      A,
+      columnA,
       dateTime,
       timestamp,
       TimeStamp,
@@ -37,12 +39,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
 
-    // Get the ID of the 'New Leads' group (sort_order = 10)
+    // Get the ID of the 'לידים' group (sort_order = 10)
     const { data: newLeadsGroup } = await supabase
       .from('groups')
       .select('id')
-      .eq('name', 'New Leads')
+      .eq('name', 'לידים')
       .single()
+
+    const sourceFromColumnA = columnA ?? A
+    const resolvedSource = sourceFromColumnA ?? source ?? 'Google Sheets'
 
     const rawDateTime = dateTime ?? timestamp ?? TimeStamp
     const parsedSheetDateTime = rawDateTime ? new Date(rawDateTime) : null
@@ -54,7 +59,7 @@ export async function POST(request: Request) {
       full_name: name,
       phone,
       email,
-      source,
+      source: resolvedSource,
       group_id: newLeadsGroup?.id,
       external_source_id: rowId,
     }

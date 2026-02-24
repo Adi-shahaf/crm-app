@@ -25,7 +25,7 @@ const USER_ROLE_BY_EMAIL: Record<string, UserRole> = {
   'adi@synergytech.co.il': 'admin',
   'elattiass@gmail.com': 'sales',
   'shai@synergytech.co.il': 'project_manager',
-  'yuval@synergytech.co.il': 'project_manager',
+  'yuval@synergytech.co.il': 'admin',
 }
 
 export const USER_ROLE_LIST = Object.entries(USER_ROLE_BY_EMAIL)
