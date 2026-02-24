@@ -8,6 +8,11 @@ import {
   type BoardColumnKey,
   getBoardColumnAccessByEmail,
   canAccessSalesTabByEmail,
+  canAccessProjectKanbanByEmail,
+  filterGroupsByEmailAccess,
+  filterPeopleByEmailAccess,
+  filterPeopleByGroupAccess,
+  USER_ROLE_LIST,
 } from '@/lib/user-permissions'
 import { 
   Collapsible, 
@@ -41,6 +46,8 @@ type SortDirection = 'asc' | 'desc'
 type SortConfig = { field: SortField; direction: SortDirection } | null
 type DrawerTab = 'notes' | 'purchases'
 type ColumnKey = BoardColumnKey
+type SellerOption = { email: string; label: string }
+const NO_SELLER_VALUE = '__none__'
 
 const GROUP_NAME_MAP: Record<string, string> = {
   'New Leads': 'לידים',
@@ -59,21 +66,12 @@ const GROUP_DOT_COLOR_CLASS: Record<string, string> = {
   'ארכיון לקוחות': 'bg-gray-500',
   'לא רלוונטי': 'bg-red-600',
 }
-const GROUP_BEZEL_CLASS: Record<string, string> = {
-  לידים: 'border-blue-200 bg-blue-50 text-blue-700',
-  'לידים ישנים': 'border-blue-200 bg-blue-50 text-blue-700',
-  לקוחות: 'border-purple-200 bg-purple-50 text-purple-700',
-  'לקוחות גדולים': 'border-purple-200 bg-purple-50 text-purple-700',
-  'ארכיון לקוחות': 'border-gray-300 bg-gray-50 text-gray-700',
-  'לא רלוונטי': 'border-red-200 bg-red-50 text-red-700',
-}
 
 const getGroupDotColorClass = (groupName: string) =>
   GROUP_DOT_COLOR_CLASS[getDisplayGroupName(groupName)] || 'bg-blue-500'
-const getGroupBezelClass = (groupName: string) =>
-  GROUP_BEZEL_CLASS[getDisplayGroupName(groupName)] || 'border-blue-200 bg-blue-50 text-blue-700'
 
 const getPersonDateTime = (person: PersonWithGroup) => person.sheet_datetime || person.created_at
+const getEmailPrefix = (email: string) => email.split('@')[0] || email
 const DELETE_BATCH_SIZE = 100
 const personMatchesSearch = (person: PersonWithGroup, search: string) => {
   const normalizedSearch = search.trim().toLocaleLowerCase()
@@ -91,7 +89,6 @@ const personMatchesSearch = (person: PersonWithGroup, search: string) => {
     person.campaign,
     person.ad_name,
     person.status,
-    person.lead_status,
     person.score_1_3,
     person.total_contracts,
     person.sheet_datetime,
@@ -120,7 +117,6 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   ad_name: 'שם המודעה',
   total_contracts: 'סה"כ חוזים',
   status: 'סטטוס',
-  lead_status: 'מצב ליד',
 }
 const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
   full_name: true,
@@ -138,7 +134,6 @@ const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
   ad_name: true,
   total_contracts: true,
   status: true,
-  lead_status: true,
 }
 const SORT_FIELD_TO_COLUMN: Record<SortField, ColumnKey> = {
   full_name: 'full_name',
@@ -188,9 +183,16 @@ export function BoardClient({
   initialPeople: PersonWithGroup[],
   userEmail: string | null | undefined,
 }) {
-  const groups = initialGroups
+  const groups = useMemo(
+    () => filterGroupsByEmailAccess(initialGroups, userEmail),
+    [initialGroups, userEmail]
+  )
   const columnAccess = useMemo(() => getBoardColumnAccessByEmail(userEmail), [userEmail])
   const canAccessSalesTab = useMemo(() => canAccessSalesTabByEmail(userEmail), [userEmail])
+  const canAccessProjectKanban = useMemo(
+    () => canAccessProjectKanbanByEmail(userEmail),
+    [userEmail]
+  )
   const [people, setPeople] = useState(initialPeople)
   const [purchaseCounts, setPurchaseCounts] = useState<Record<string, number>>({})
   const [purchaseTotals, setPurchaseTotals] = useState<Record<string, number>>({})
@@ -205,6 +207,20 @@ export function BoardClient({
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
   const columnsMenuRef = useRef<HTMLDivElement | null>(null)
   const supabase = createClient()
+  const sellerOptions = useMemo(() => {
+    const uniqueEmails = new Set(
+      USER_ROLE_LIST.map((entry) => entry.email.trim().toLowerCase()).filter(Boolean)
+    )
+
+    const normalizedCurrentUserEmail = userEmail?.trim().toLowerCase()
+    if (normalizedCurrentUserEmail) {
+      uniqueEmails.add(normalizedCurrentUserEmail)
+    }
+
+    return Array.from(uniqueEmails)
+      .sort((a, b) => a.localeCompare(b))
+      .map((email) => ({ email, label: getEmailPrefix(email) }))
+  }, [userEmail])
 
   useEffect(() => {
     const loadPurchaseStats = async () => {
@@ -254,7 +270,14 @@ export function BoardClient({
       .eq('id', id)
 
     if (error) {
-      console.error('Error updating person:', { id, updates, error })
+      console.error('Error updating person:', {
+        id,
+        updates,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
       // Revert only this person to avoid overwriting unrelated UI changes (like deletions).
       setPeople((prev) => prev.map((person) => (person.id === id ? previousPerson : person)))
     }
@@ -347,9 +370,14 @@ export function BoardClient({
     }
   }
 
+  const accessiblePeople = useMemo(() => {
+    const byRole = filterPeopleByEmailAccess(people, userEmail)
+    const allowedGroupIds = new Set(groups.map((group) => group.id))
+    return filterPeopleByGroupAccess(byRole, allowedGroupIds)
+  }, [groups, people, userEmail])
   const filteredPeople = useMemo(
-    () => people.filter((person) => personMatchesSearch(person, searchTerm)),
-    [people, searchTerm]
+    () => accessiblePeople.filter((person) => personMatchesSearch(person, searchTerm)),
+    [accessiblePeople, searchTerm]
   )
   const visibleColumnCount = useMemo(
     () => BOARD_COLUMNS.filter((column) => visibleColumns[column]).length,
@@ -421,7 +449,7 @@ export function BoardClient({
               <div className="mb-2 flex items-center justify-between text-xs">
                 <button
                   type="button"
-                  className="text-blue-600 hover:text-blue-800"
+                  className="text-gray-700 hover:text-gray-900"
                   onClick={() => setAllColumnsVisible(true)}
                 >
                   Show all
@@ -472,12 +500,17 @@ export function BoardClient({
           onCreatePerson={handleCreatePerson}
           onDeletePeople={handleDeletePeople}
           visibleColumns={visibleColumns}
+          sellerOptions={sellerOptions}
           onOpenDrawer={(person, tab = 'notes') => {
             setSelectedPerson(person)
             setSelectedDrawerTab(tab === 'purchases' && !canAccessSalesTab ? 'notes' : tab)
           }}
-          onOpenProjects={(person) => setSelectedProjectsPerson(person)}
+          onOpenProjects={(person) => {
+            if (!canAccessProjectKanban) return
+            setSelectedProjectsPerson(person)
+          }}
           canAccessSalesTab={canAccessSalesTab}
+          canAccessProjectKanban={canAccessProjectKanban}
         />
       ))}
       <PersonDrawer 
@@ -503,11 +536,13 @@ export function BoardClient({
           }))
         }}
       />
-      <ProjectKanbanDialog
-        person={selectedProjectsPerson}
-        isOpen={!!selectedProjectsPerson}
-        onClose={() => setSelectedProjectsPerson(null)}
-      />
+      {canAccessProjectKanban ? (
+        <ProjectKanbanDialog
+          person={selectedProjectsPerson}
+          isOpen={!!selectedProjectsPerson}
+          onClose={() => setSelectedProjectsPerson(null)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -523,9 +558,11 @@ function GroupSection({
   onCreatePerson,
   onDeletePeople,
   visibleColumns,
+  sellerOptions,
   onOpenDrawer,
   onOpenProjects,
   canAccessSalesTab,
+  canAccessProjectKanban,
 }: { 
   group: Group, 
   groups: Group[],
@@ -537,9 +574,11 @@ function GroupSection({
   onCreatePerson: (groupId: string, name: string) => void,
   onDeletePeople: (ids: string[]) => void,
   visibleColumns: Record<ColumnKey, boolean>,
+  sellerOptions: SellerOption[],
   onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
   onOpenProjects: (person: PersonWithGroup) => void,
-  canAccessSalesTab: boolean
+  canAccessSalesTab: boolean,
+  canAccessProjectKanban: boolean
 }) {
   const [isOpen, setIsOpen] = useState(true)
   const [newItemName, setNewItemName] = useState('')
@@ -631,15 +670,15 @@ function GroupSection({
     <Collapsible
       open={isOpen}
       onOpenChange={setIsOpen}
-      className="bg-white rounded-lg border shadow-sm overflow-hidden"
+      className="overflow-hidden rounded-md border border-gray-200 bg-white"
     >
-      <div className="flex items-center px-4 py-3 border-b bg-gray-50/50">
+      <div className="flex items-center border-b border-gray-200 bg-white px-3 py-2.5">
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm" className="w-6 h-6 p-0 mr-2">
             {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </Button>
         </CollapsibleTrigger>
-        <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
           <span
             className={`h-2.5 w-2.5 rounded-full ${getGroupDotColorClass(group.name)}`}
             aria-hidden="true"
@@ -715,7 +754,7 @@ function GroupSection({
                 {visibleColumns.whatsapp_response && <TableHead className="min-w-[150px]">תגובה להודעת ווטסאפ</TableHead>}
                 {visibleColumns.employment_status && <TableHead className="min-w-[120px]">שכיר / עצמאי</TableHead>}
                 {visibleColumns.lead_idea && <TableHead className="min-w-[150px]">רעיון (טופס לידים)</TableHead>}
-                {visibleColumns.seller && <TableHead className="min-w-[100px]">מוכר</TableHead>}
+                {visibleColumns.seller && <TableHead className="min-w-[86px]">מוכר</TableHead>}
                 {visibleColumns.campaign && <TableHead className="min-w-[120px]">קמפיין</TableHead>}
                 {visibleColumns.ad_name && <TableHead className="min-w-[120px]">שם המודעה</TableHead>}
                 {visibleColumns.total_contracts && (
@@ -727,7 +766,6 @@ function GroupSection({
                 </TableHead>
                 )}
                 {visibleColumns.status && <TableHead className="min-w-[120px]">סטטוס</TableHead>}
-                {visibleColumns.lead_status && <TableHead className="min-w-[120px]">מצב ליד</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -741,6 +779,7 @@ function GroupSection({
                   purchaseTotal={purchaseTotals[person.id] || 0}
                   noteCount={noteCounts[person.id] || 0}
                   visibleColumns={visibleColumns}
+                  sellerOptions={sellerOptions}
                   onUpdate={onUpdatePerson} 
                   isSelected={validSelectedIds.includes(person.id)}
                   onToggleSelect={(checked) => {
@@ -753,6 +792,7 @@ function GroupSection({
                   onOpenDrawer={onOpenDrawer}
                   onOpenProjects={onOpenProjects}
                   canAccessSalesTab={canAccessSalesTab}
+                  canAccessProjectKanban={canAccessProjectKanban}
                 />
               ))}
               
@@ -787,7 +827,7 @@ function GroupSection({
                     </form>
                   ) : (
                     <div 
-                      className="text-sm text-gray-400 cursor-pointer hover:text-gray-600 flex items-center h-8"
+                      className="flex h-8 cursor-pointer items-center text-sm text-gray-500 hover:text-gray-700"
                       onClick={() => setIsCreating(true)}
                     >
                       + הוסף שורה
@@ -811,12 +851,14 @@ function EditableRow({
   purchaseTotal,
   noteCount,
   visibleColumns,
+  sellerOptions,
   onUpdate,
   isSelected,
   onToggleSelect,
   onOpenDrawer,
   onOpenProjects,
   canAccessSalesTab,
+  canAccessProjectKanban,
 }: { 
   person: PersonWithGroup, 
   groups: Group[],
@@ -825,12 +867,14 @@ function EditableRow({
   purchaseTotal: number,
   noteCount: number,
   visibleColumns: Record<ColumnKey, boolean>,
+  sellerOptions: SellerOption[],
   onUpdate: (id: string, updates: Partial<PersonWithGroup>) => void,
   isSelected: boolean,
   onToggleSelect: (checked: boolean) => void,
   onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
   onOpenProjects: (person: PersonWithGroup) => void,
-  canAccessSalesTab: boolean
+  canAccessSalesTab: boolean,
+  canAccessProjectKanban: boolean
 }) {
   const [editingField, setEditingField] = useState<keyof PersonWithGroup | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -910,19 +954,21 @@ function EditableRow({
             <Maximize2 className="h-3.5 w-3.5" />
             <span className="text-xs">פתח</span>
           </Button>
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
-            onClick={() => onOpenProjects(person)}
-            title="Projects"
-          >
-            <KanbanSquare className="h-4 w-4" />
-            <span>{projectCount}</span>
-          </button>
+          {canAccessProjectKanban ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
+              onClick={() => onOpenProjects(person)}
+              title="Projects"
+            >
+              <KanbanSquare className="h-4 w-4" />
+              <span>{projectCount}</span>
+            </button>
+          ) : null}
           {canAccessSalesTab ? (
             <button
               type="button"
-              className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
+              className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
               onClick={() => onOpenDrawer(person, 'purchases')}
             >
               <ShoppingCart className="h-4 w-4" />
@@ -931,7 +977,7 @@ function EditableRow({
           ) : null}
           <button
             type="button"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-gray-700 whitespace-nowrap hover:text-blue-700"
+            className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
             onClick={() => onOpenDrawer(person, 'notes')}
           >
             <MessageSquare className="h-4 w-4" />
@@ -957,7 +1003,7 @@ function EditableRow({
             {groups.map(g => (
               <SelectItem key={g.id} value={g.id}>
                 <div
-                  className={`inline-flex items-center gap-2 rounded-full border px-2 py-0.5 transition-colors ${getGroupBezelClass(g.name)}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-gray-700 transition-colors"
                 >
                   <div className={`w-2 h-2 rounded-full ${
                     getGroupDotColorClass(g.name)
@@ -1015,7 +1061,28 @@ function EditableRow({
       {visibleColumns.lead_idea && renderCell('lead_idea', person.lead_idea)}
 
       {/* 11. Seller */}
-      {visibleColumns.seller && renderCell('seller', person.seller)}
+      {visibleColumns.seller && (
+      <TableCell className="p-2 align-middle">
+        <Select
+          value={person.seller && sellerOptions.some((option) => option.email === person.seller) ? person.seller : NO_SELLER_VALUE}
+          onValueChange={(value) =>
+            onUpdate(person.id, { seller: value === NO_SELLER_VALUE ? null : value })
+          }
+        >
+          <SelectTrigger className="h-8 border-none shadow-none focus:ring-0 hover:bg-gray-100 w-[110px] min-w-[110px] gap-1 pr-2">
+            <SelectValue placeholder="בחר מוכר" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_SELLER_VALUE}>ללא</SelectItem>
+            {sellerOptions.map((option) => (
+              <SelectItem key={option.email} value={option.email}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      )}
 
       {/* 12. Campaign */}
       {visibleColumns.campaign && renderCell('campaign', person.campaign)}
@@ -1032,9 +1099,6 @@ function EditableRow({
 
       {/* 15. Status */}
       {visibleColumns.status && renderCell('status', person.status)}
-
-      {/* 16. Lead status */}
-      {visibleColumns.lead_status && renderCell('lead_status', person.lead_status)}
 
     </TableRow>
   )
