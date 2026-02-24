@@ -83,7 +83,6 @@ export default async function DashboardPage() {
 
           <section className="rounded-lg border bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-800">Sales by Month</h2>
-            <p className="text-xs text-gray-500">Based on sale date (`sale_date`)</p>
 
             {chartItems.length === 0 ? (
               <p className="mt-6 text-sm text-gray-500">No sales with sale date yet.</p>
