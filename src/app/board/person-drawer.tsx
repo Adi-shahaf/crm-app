@@ -67,6 +67,7 @@ export function PersonDrawer({
   canAccessSalesTab = true,
   onPurchaseCreated,
   onPurchaseUpdated,
+  onPurchaseDeleted,
   onNotesChanged
 }: {
   person: PersonWithGroup | null,
@@ -76,6 +77,7 @@ export function PersonDrawer({
   canAccessSalesTab?: boolean,
   onPurchaseCreated?: (personId: string, price: number) => void,
   onPurchaseUpdated?: (personId: string, previousPrice: number, nextPrice: number) => void,
+  onPurchaseDeleted?: (personId: string, price: number) => void,
   onNotesChanged?: (personId: string, delta: number) => void
 }) {
   const [notes, setNotes] = useState<Note[]>([])
@@ -105,6 +107,7 @@ export function PersonDrawer({
     installmentPlan: '',
   })
   const [isUpdatingPurchaseId, setIsUpdatingPurchaseId] = useState<string | null>(null)
+  const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
   const [editPurchaseError, setEditPurchaseError] = useState('')
   const supabase = createClient()
 
@@ -355,6 +358,29 @@ export function PersonDrawer({
     setEditingPurchaseId(null)
     setIsUpdatingPurchaseId(null)
     setEditPurchaseError('')
+  }
+
+  const handleDeletePurchase = async (purchase: Purchase) => {
+    if (!person) return
+
+    setEditPurchaseError('')
+    setDeletingPurchaseId(purchase.id)
+
+    const { error } = await supabase
+      .from('purchases')
+      .delete()
+      .eq('id', purchase.id)
+
+    if (error) {
+      setEditPurchaseError(`מחיקת רכישה נכשלה: ${getSupabaseErrorMessage(error)}`)
+      setDeletingPurchaseId(null)
+      return
+    }
+
+    setPurchases((prev) => prev.filter((existing) => existing.id !== purchase.id))
+    const deletedPrice = typeof purchase.price === 'number' ? purchase.price : Number(purchase.price || 0)
+    onPurchaseDeleted?.(person.id, Number.isNaN(deletedPrice) ? 0 : deletedPrice)
+    setDeletingPurchaseId(null)
   }
 
   const canCreatePurchase =
@@ -610,7 +636,19 @@ export function PersonDrawer({
                             <div className="text-sm text-gray-500">תאריך מכירה: {p.sale_date ? new Date(p.sale_date).toLocaleDateString() : '-'}</div>
                             <div className="text-sm text-gray-500">אופן תשלום: {p.payment_method || '-'}</div>
                             <div className="text-sm text-gray-500">הסדר תשלומים: {p.installment_plan || '-'}</div>
-                            <div className="flex justify-end pt-2">
+                            <div className="flex justify-end gap-2 pt-2">
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                className="h-8 w-8"
+                                onClick={() => handleDeletePurchase(p)}
+                                disabled={deletingPurchaseId === p.id}
+                                aria-label="Delete service"
+                                title="Delete service"
+                              >
+                                <Trash2 className={`h-3.5 w-3.5 ${deletingPurchaseId === p.id ? 'animate-pulse' : ''}`} />
+                              </Button>
                               <Button type="button" size="sm" variant="outline" onClick={() => startEditingPurchase(p)}>
                                 עריכה
                               </Button>

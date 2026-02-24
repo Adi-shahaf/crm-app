@@ -529,6 +529,16 @@ export function BoardClient({
             [personId]: (prev[personId] || 0) - previousPrice + nextPrice,
           }))
         }}
+        onPurchaseDeleted={(personId, price) => {
+          setPurchaseCounts((prev) => ({
+            ...prev,
+            [personId]: Math.max(0, (prev[personId] || 0) - 1),
+          }))
+          setPurchaseTotals((prev) => ({
+            ...prev,
+            [personId]: Math.max(0, (prev[personId] || 0) - price),
+          }))
+        }}
         onNotesChanged={(personId, delta) => {
           setNoteCounts((prev) => ({
             ...prev,
