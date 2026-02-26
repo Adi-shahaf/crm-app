@@ -508,6 +508,7 @@ export function BoardClient({
           group={group} 
           groups={groups}
           people={filteredPeople.filter((p) => p.group_id === group.id)} 
+          shouldAutoExpand={searchTerm.trim().length > 0}
           purchaseCounts={purchaseCounts}
           purchaseTotals={purchaseTotals}
           noteCounts={noteCounts}
@@ -576,6 +577,7 @@ function GroupSection({
   group, 
   groups,
   people, 
+  shouldAutoExpand,
   purchaseCounts,
   purchaseTotals,
   noteCounts,
@@ -592,6 +594,7 @@ function GroupSection({
   group: Group, 
   groups: Group[],
   people: PersonWithGroup[],
+  shouldAutoExpand: boolean,
   purchaseCounts: Record<string, number>,
   purchaseTotals: Record<string, number>,
   noteCounts: Record<string, number>,
@@ -605,11 +608,12 @@ function GroupSection({
   canAccessSalesTab: boolean,
   canAccessProjectKanban: boolean
 }) {
-  const [isOpen, setIsOpen] = useState(false)
+  const [manuallyOpen, setManuallyOpen] = useState(false)
   const [newItemName, setNewItemName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
+  const isOpen = shouldAutoExpand && people.length > 0 ? true : manuallyOpen
 
   const validSelectedIds = selectedIds.filter((id) => people.some((person) => person.id === id))
   const allSelected = people.length > 0 && validSelectedIds.length === people.length
@@ -694,7 +698,7 @@ function GroupSection({
   return (
     <Collapsible
       open={isOpen}
-      onOpenChange={setIsOpen}
+      onOpenChange={setManuallyOpen}
       className="relative overflow-hidden rounded-md border border-gray-200 bg-white"
     >
       <div
