@@ -1,10 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import Image from 'next/image'
 
 export default async function Page() {
   const supabase = await createClient()
 
-  const { data, error } = await supabase.auth.getUser()
+  const { data } = await supabase.auth.getUser()
   if (data?.user) {
     redirect('/board')
   }
@@ -12,7 +13,9 @@ export default async function Page() {
   return (
     <div className="flex h-screen w-full items-center justify-center bg-gray-50">
       <div className="w-full max-w-sm rounded-lg border bg-white p-8 shadow-sm">
-        <h1 className="mb-6 text-2xl font-semibold text-center">Login to CRM</h1>
+        <div className="mb-6 flex justify-center">
+          <Image src="/synergylogo.png" alt="Synergy logo" width={180} height={52} priority />
+        </div>
         <form action="/auth/login" method="post" className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700" htmlFor="email">
