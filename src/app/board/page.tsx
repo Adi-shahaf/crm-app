@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import Image from 'next/image'
 import { BoardClient } from './board-client'
 import { HeaderMenu } from '@/components/header-menu'
 import { canAccessDashboard } from '@/lib/dashboard-access'
@@ -8,6 +9,45 @@ import {
   filterPeopleByEmailAccess,
   filterPeopleByGroupAccess,
 } from '@/lib/user-permissions'
+
+const PAGE_SIZE = 1000
+
+async function fetchAllPeople(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  useSheetDatetimeOrder: boolean
+) {
+  const allPeople: Record<string, unknown>[] = []
+
+  for (let from = 0; ; from += PAGE_SIZE) {
+    let query = supabase
+      .from('people')
+      .select('*, groups(*)')
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (useSheetDatetimeOrder) {
+      query = query.order('sheet_datetime', { ascending: false, nullsFirst: false })
+    }
+
+    query = query.order('created_at', { ascending: false })
+
+    const { data, error } = await query
+    if (error) {
+      return { data: null, error }
+    }
+
+    if (!data || data.length === 0) {
+      break
+    }
+
+    allPeople.push(...data)
+
+    if (data.length < PAGE_SIZE) {
+      break
+    }
+  }
+
+  return { data: allPeople, error: null }
+}
 
 export default async function BoardPage() {
   const supabase = await createClient()
@@ -24,19 +64,11 @@ export default async function BoardPage() {
     .select('*')
     .order('sort_order', { ascending: true })
 
-  let { data: people, error: peopleError } = await supabase
-    .from('people')
-    .select('*, groups(*)')
-    .order('sheet_datetime', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
+  let { data: people, error: peopleError } = await fetchAllPeople(supabase, true)
 
   // Backward compatibility until the sheet_datetime migration is applied everywhere.
   if (peopleError && peopleError.message.includes('sheet_datetime')) {
-    const fallback = await supabase
-      .from('people')
-      .select('*, groups(*)')
-      .order('created_at', { ascending: false })
-
+    const fallback = await fetchAllPeople(supabase, false)
     people = fallback.data
     peopleError = fallback.error
   }
@@ -55,7 +87,7 @@ export default async function BoardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center">
-        <h1 className="text-xl font-bold text-gray-800">CRM Board</h1>
+        <Image src="/monday.png" alt="Monday logo" width={170} height={40} priority />
         <HeaderMenu
           userEmail={user.email}
           canAccessDashboard={userCanAccessDashboard}
