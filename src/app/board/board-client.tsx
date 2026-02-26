@@ -695,8 +695,12 @@ function GroupSection({
     <Collapsible
       open={isOpen}
       onOpenChange={setIsOpen}
-      className="overflow-hidden rounded-md border border-gray-200 bg-white"
+      className="relative overflow-hidden rounded-md border border-gray-200 bg-white"
     >
+      <div
+        className={`pointer-events-none absolute inset-y-0 left-0 w-1 ${getGroupDotColorClass(group.name)}`}
+        aria-hidden="true"
+      />
       <div className="flex items-center border-b border-gray-200 bg-white px-3 py-2.5">
         <CollapsibleTrigger asChild>
           <Button variant="ghost" size="sm" className="w-6 h-6 p-0 mr-2">
