@@ -245,13 +245,27 @@ export function BoardClient({
 
   useEffect(() => {
     const loadNoteStats = async () => {
-      const { data, error } = await supabase.from('notes').select('person_id')
-      if (error || !data) return
-
       const counts: Record<string, number> = {}
-      for (const note of data) {
-        counts[note.person_id] = (counts[note.person_id] || 0) + 1
+      const pageSize = 1000
+      let from = 0
+
+      while (true) {
+        const { data, error } = await supabase
+          .from('notes')
+          .select('person_id')
+          .range(from, from + pageSize - 1)
+
+        if (error || !data) return
+
+        for (const note of data) {
+          if (!note.person_id) continue
+          counts[note.person_id] = (counts[note.person_id] || 0) + 1
+        }
+
+        if (data.length < pageSize) break
+        from += pageSize
       }
+
       setNoteCounts(counts)
     }
 
