@@ -383,6 +383,102 @@ class ParsedSheetComments:
     rows_with_content: int
 
 
+def parse_legacy_rows_atias(rows: list[list[str]]) -> ParsedData:
+    people: list[dict[str, Any]] = []
+    notes: list[dict[str, Any]] = []
+    services: list[dict[str, Any]] = []
+    unknown_sellers: Counter = Counter()
+    unknown_pm: Counter = Counter()
+    ignored_rows = 0
+
+    header_idx: dict[str, int] | None = None
+    current_group: str | None = None
+
+    for row in rows:
+        if not header_idx:
+            if "Name" in row and "Item ID (auto generated)" in row:
+                header_idx = {value.strip(): index for index, value in enumerate(row) if value.strip()}
+            elif clean_text(row[0]) and nonempty_count(row) == 1:
+                current_group = row[0].strip()
+            continue
+
+        # pad for safe index access
+        row = row + [""] * 32
+        if is_blank_row(row):
+            continue
+
+        # group marker row
+        if clean_text(row[0]) and nonempty_count(row) == 1:
+            current_group = row[0].strip()
+            continue
+
+        # repeated header row
+        if clean_text(row[0]) == "Name" and "Item ID (auto generated)" in row:
+            continue
+
+        name = clean_text(row[header_idx.get("Name", 0)])
+        if not name:
+            ignored_rows += 1
+            continue
+
+        external_idx = header_idx.get("Item ID (auto generated)")
+        external_id = normalize_legacy_id(row[external_idx]) if external_idx is not None else None
+        if not external_id:
+            external_id = f"legacy_row_{len(people) + 1}"
+
+        seller_idx = header_idx.get("מוכר")
+        seller_raw = clean_text(row[seller_idx]) if seller_idx is not None else None
+        seller_email = map_seller_email(seller_raw)
+        if seller_raw and not seller_email:
+            unknown_sellers[seller_raw] += 1
+
+        def get(col_name: str) -> str | None:
+            idx = header_idx.get(col_name)
+            if idx is None:
+                return None
+            return clean_text(row[idx])
+
+        person: dict[str, Any] = {
+            "external_source_id": external_id,
+            "full_name": name,
+            "phone": normalize_phone(get("מספר טלפון")),
+            "email": normalize_email(get("כתובת מייל")),
+            "sheet_datetime": parse_person_datetime(get("תאריך ושעה")),
+            "score_1_3": parse_score(get("ציון 1-3")),
+            "source": normalize_source(get("מקור")),
+            "whatsapp_response": get("תגובה להודעת ווטסאפ"),
+            "employment_status": get("שכיר / עצמאי"),
+            "lead_idea": get("רעיון (טופס לידים)"),
+            "seller": seller_email,
+            "campaign": get("קמפיין"),
+            "ad_name": get("שם המודעה"),
+            "total_contracts": None,
+            "status": get("סטטוס"),
+            "_group_name": current_group,
+        }
+
+        people.append(person)
+
+        # Keep legacy H-like behavior: add note from whatsapp response when present.
+        if person["whatsapp_response"]:
+            notes.append(
+                {
+                    "person_external_source_id": external_id,
+                    "type": "note",
+                    "content": person["whatsapp_response"],
+                }
+            )
+
+    return ParsedData(
+        people=people,
+        notes=notes,
+        services=services,
+        unknown_sellers=unknown_sellers,
+        unknown_project_managers=unknown_pm,
+        ignored_rows=ignored_rows,
+    )
+
+
 def parse_legacy_rows(rows: list[list[str]]) -> ParsedData:
     people: list[dict[str, Any]] = []
     notes: list[dict[str, Any]] = []
@@ -723,6 +819,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--xlsx", required=True, type=Path)
     parser.add_argument("--env", required=True, type=Path)
+    parser.add_argument("--items-sheet-name")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--only-notes", action="store_true")
     parser.add_argument("--dedupe-notes", action="store_true")
@@ -736,8 +833,9 @@ def main() -> None:
     if not supabase_url or not service_key:
         raise SystemExit("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in env file")
 
-    rows = read_sheet_rows(args.xlsx)
-    parsed = parse_legacy_rows(rows)
+    rows = read_sheet_rows(args.xlsx, sheet_name=args.items_sheet_name)
+    use_atias_parser = bool(args.items_sheet_name and args.items_sheet_name.strip() == "אטיאס")
+    parsed = parse_legacy_rows_atias(rows) if use_atias_parser else parse_legacy_rows(rows)
 
     print("Parsed:")
     print(f"- people: {len(parsed.people)}")
