@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select"
 import { PersonDrawer } from './person-drawer'
 import { ProjectKanbanDialog } from './project-kanban-dialog'
+import { cn } from '@/lib/utils'
 
 type SortField = 'full_name' | 'sheet_datetime' | 'score_1_3' | 'total_contracts'
 type SortDirection = 'asc' | 'desc'
@@ -590,7 +591,7 @@ function GroupSection({
   canAccessSalesTab: boolean,
   canAccessProjectKanban: boolean
 }) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const [newItemName, setNewItemName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -987,11 +988,23 @@ function EditableRow({
           ) : null}
           <button
             type="button"
-            className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
+            className="inline-flex items-center whitespace-nowrap text-sm font-semibold"
             onClick={() => onOpenDrawer(person, 'notes')}
+            title={noteCount > 0 ? `${noteCount} comments` : 'No comments'}
           >
-            <MessageSquare className="h-4 w-4" />
-            <span>{noteCount}</span>
+            <span className="relative inline-flex h-5 w-5 items-center justify-center">
+              <MessageSquare
+                className={cn(
+                  'h-4 w-4 transition-colors',
+                  noteCount > 0 ? 'text-blue-500' : 'text-gray-400'
+                )}
+              />
+              {noteCount > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] leading-none text-white">
+                  {noteCount}
+                </span>
+              ) : null}
+            </span>
           </button>
         </div>
       </TableCell>
