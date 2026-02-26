@@ -350,8 +350,8 @@ export function ProjectKanbanDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 px-4 py-3">
-          <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="flex-1 min-h-0 px-4 py-3">
+          <div className="grid h-full min-h-0 grid-cols-1 gap-4 md:grid-cols-3">
               {PROJECT_STAGES.map((stage) => {
                 const columnProjects = projectsByStage[stage]
                 const isActiveDropZone = dragOverStage === stage
@@ -389,7 +389,7 @@ export function ProjectKanbanDialog({
                       </Badge>
                     </div>
 
-                    <ScrollArea className="flex-1 px-2 py-2">
+                    <ScrollArea className="flex-1 min-h-0 px-2 py-2">
                       <div className="space-y-2.5">
                         {columnProjects.length === 0 ? (
                           <p className="rounded-lg border border-dashed border-gray-300 bg-slate-50 px-3 py-4 text-center text-xs text-gray-500">
