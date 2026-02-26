@@ -1116,7 +1116,7 @@ function EditableRow({
       {/* 14. Total contracts (computed from purchases, non-editable) */}
       {visibleColumns.total_contracts && (
       <TableCell className="p-2 align-middle text-gray-700">
-        <span className="block truncate">₪{purchaseTotal.toFixed(2)}</span>
+        <span className="block truncate">₪{purchaseTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
       </TableCell>
       )}
 

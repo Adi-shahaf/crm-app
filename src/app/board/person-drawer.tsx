@@ -638,7 +638,7 @@ export function PersonDrawer({
                             <div className="flex justify-between items-center gap-3">
                               <div className="font-medium text-gray-900">{p.service_id || 'Unknown Service'}</div>
                               <div className="font-semibold text-gray-900">
-                                ₪{p.price?.toFixed(2) || '0.00'}
+                                ₪{(p.price || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
                               </div>
                             </div>
                             <div className="text-sm text-gray-500">תאריך מכירה: {p.sale_date ? new Date(p.sale_date).toLocaleDateString() : '-'}</div>

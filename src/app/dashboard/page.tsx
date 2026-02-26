@@ -78,7 +78,7 @@ export default async function DashboardPage() {
           <section className="rounded-lg border bg-white p-6 shadow-sm">
             <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
             <p className="mt-2 text-4xl font-bold text-gray-900">
-              ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+              ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </p>
           </section>
 
