@@ -925,9 +925,14 @@ function EditableRow({
   }
 
   const renderCell = (field: keyof PersonWithGroup, value: string | number | null, isNumber = false) => {
+    const isWhatsappResponseField = field === 'whatsapp_response'
+
     return (
       <TableCell 
-        className="p-2 align-middle cursor-text"
+        className={cn(
+          'p-2 align-middle cursor-text',
+          isWhatsappResponseField && 'w-[180px] max-w-[180px]'
+        )}
         onClick={() => editingField !== field && startEdit(field, value)}
       >
         {editingField === field ? (
@@ -938,10 +943,13 @@ function EditableRow({
             onChange={(e) => setEditValue(e.target.value)}
             onBlur={commitEdit}
             onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
-            className="h-8 text-sm w-full min-w-[100px]"
+            className={cn(
+              'h-8 text-sm w-full min-w-[100px]',
+              isWhatsappResponseField && 'min-w-0'
+            )}
           />
         ) : (
-          <span className="text-gray-700 block truncate">{value || '-'}</span>
+          <span className={cn('text-gray-700 block truncate', isWhatsappResponseField && 'max-w-[180px]')}>{value || '-'}</span>
         )}
       </TableCell>
     )

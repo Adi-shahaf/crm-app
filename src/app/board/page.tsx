@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { BoardClient } from './board-client'
 import { HeaderMenu } from '@/components/header-menu'
 import { canAccessDashboard } from '@/lib/dashboard-access'
+import { PersonWithGroup } from '@/types/database'
 import {
   filterGroupsByEmailAccess,
   filterPeopleByEmailAccess,
@@ -16,7 +17,7 @@ async function fetchAllPeople(
   supabase: Awaited<ReturnType<typeof createClient>>,
   useSheetDatetimeOrder: boolean
 ) {
-  const allPeople: Record<string, unknown>[] = []
+  const allPeople: PersonWithGroup[] = []
 
   for (let from = 0; ; from += PAGE_SIZE) {
     let query = supabase
@@ -39,7 +40,7 @@ async function fetchAllPeople(
       break
     }
 
-    allPeople.push(...data)
+    allPeople.push(...(data as PersonWithGroup[]))
 
     if (data.length < PAGE_SIZE) {
       break
