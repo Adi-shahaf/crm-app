@@ -33,6 +33,12 @@ const PAYMENT_METHOD_OPTIONS = [
 ]
 
 const getTodayDateInput = () => new Date().toISOString().split('T')[0]
+const formatNoteDateTime = (value: string | null | undefined) => {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return '-'
+  return parsed.toLocaleString()
+}
 
 const getSupabaseErrorMessage = (error: unknown) => {
   if (!error) return 'Unknown error'
@@ -397,7 +403,7 @@ export function PersonDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-[400px] sm:w-[540px] sm:max-w-none flex flex-col p-0">
+      <SheetContent className="w-[400px] sm:w-[540px] sm:max-w-none flex flex-col overflow-hidden p-0">
         <SheetHeader className="px-6 py-4 border-b bg-gray-50/50 space-y-1">
           <SheetTitle className="text-xl">{person.full_name}</SheetTitle>
           <SheetDescription className="flex items-center gap-2">
@@ -416,7 +422,7 @@ export function PersonDrawer({
         <Tabs
           key={`${person.id}-${safeInitialTab}`}
           defaultValue={safeInitialTab}
-          className="flex-1 flex flex-col overflow-hidden"
+          className="flex-1 min-h-0 flex flex-col overflow-hidden"
         >
           <div className="px-6 pt-2 border-b">
             <TabsList className="w-full justify-start h-auto bg-transparent p-0 space-x-6">
@@ -437,7 +443,7 @@ export function PersonDrawer({
             </TabsList>
           </div>
 
-          <TabsContent value="notes" className="flex-1 flex flex-col p-0 m-0 overflow-hidden">
+          <TabsContent value="notes" className="m-0 flex flex-1 min-h-0 flex-col overflow-hidden p-0">
             <div className="p-4 border-b bg-white">
               <Textarea
                 placeholder="Write an update..."
@@ -455,7 +461,7 @@ export function PersonDrawer({
               ) : null}
             </div>
 
-            <ScrollArea className="flex-1 p-4 bg-gray-50">
+            <ScrollArea className="flex-1 min-h-0 bg-gray-50 p-4">
               <div className="space-y-4">
                 {isLoading ? (
                   <p className="text-sm text-gray-500 text-center py-4">Loading updates...</p>
@@ -470,7 +476,7 @@ export function PersonDrawer({
                           <span className="block text-gray-500">By {getNoteAuthorName(note)}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span>{new Date(note.created_at).toLocaleString()}</span>
+                          <span>{formatNoteDateTime(note.created_at)}</span>
                           <Button
                             type="button"
                             variant="ghost"
@@ -494,7 +500,7 @@ export function PersonDrawer({
           </TabsContent>
 
           {canAccessSalesTab ? (
-            <TabsContent value="purchases" className="flex-1 flex flex-col p-0 m-0 overflow-hidden">
+            <TabsContent value="purchases" className="m-0 flex flex-1 min-h-0 flex-col overflow-hidden p-0">
               <div className="p-4 border-b bg-white">
                 <div className="flex justify-end">
                   <Button
@@ -561,7 +567,7 @@ export function PersonDrawer({
                 ) : null}
               </div>
 
-              <ScrollArea className="flex-1 p-6 bg-gray-50">
+              <ScrollArea className="flex-1 min-h-0 bg-gray-50 p-6">
                 {isLoading ? (
                   <p className="text-sm text-gray-500 text-center py-4">Loading purchases...</p>
                 ) : purchases.length === 0 ? (
