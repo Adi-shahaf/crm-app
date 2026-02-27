@@ -33,28 +33,26 @@ export default async function DashboardPage() {
   }
 
   // Fetch people and groups for conversion rate
-  // Note: Supabase has a default limit of 1000 rows. We fetch in batches if needed, 
-  // but for the count we use a separate count-only query to be accurate.
-  const [countRes, allPeopleRes, groupsRes] = await Promise.all([
+  // Note: Supabase has a default limit of 1000 rows. We use count: 'exact' to get the true total.
+  // We fetch groups first to know which IDs to count.
+  const { data: groupsRes } = await supabase.from('groups').select('id, name')
+  const groups = groupsRes || []
+
+  const clientGroupIds = groups
+    .filter(g => {
+      const name = g.name?.trim()
+      return name === 'לקוחות' || name === 'לקוחות גדולים' || name === 'ארכיון לקוחות'
+    })
+    .map(g => g.id)
+
+  // Use PostgREST's ability to count directly instead of fetching all rows
+  const [totalPeopleRes, totalClientsRes] = await Promise.all([
     supabase.from('people').select('*', { count: 'exact', head: true }),
-    supabase.from('people').select('group_id').limit(100000), // Increase limit significantly to capture ALL people
-    supabase.from('groups').select('id, name')
+    supabase.from('people').select('*', { count: 'exact', head: true }).in('group_id', clientGroupIds)
   ])
 
-  const totalPeople = countRes.count || 0
-  const people = allPeopleRes.data || []
-  const groups = groupsRes.data || []
-
-  const clientGroupIds = new Set(
-    groups
-      .filter(g => {
-        const name = g.name?.trim()
-        return name === 'לקוחות' || name === 'לקוחות גדולים' || name === 'ארכיון לקוחות'
-      })
-      .map(g => g.id)
-  )
-
-  const totalClients = people.filter(p => p.group_id && clientGroupIds.has(p.group_id)).length
+  const totalPeople = totalPeopleRes.count || 0
+  const totalClients = totalClientsRes.count || 0
   const conversionRate = totalPeople > 0 ? (totalClients / totalPeople) * 100 : 0
 
   const totalContractsSold = (purchases || []).reduce(
