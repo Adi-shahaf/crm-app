@@ -3,6 +3,7 @@ import { HeaderMenu } from '@/components/header-menu'
 import { canAccessDashboard } from '@/lib/dashboard-access'
 import { USER_ROLE_LIST } from '@/lib/user-permissions'
 import { createClient } from '@/utils/supabase/server'
+import { Info } from 'lucide-react'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -19,7 +20,7 @@ export default async function DashboardPage() {
     redirect('/board')
   }
 
-  const { data: purchases, error } = await supabase.from('purchases').select('price, sale_date')
+  const { data: purchases, error } = await supabase.from('purchases').select('price, sale_date, service_id')
 
   if (error) {
     console.error('Error loading dashboard data:', {
@@ -39,6 +40,30 @@ export default async function DashboardPage() {
     },
     0
   )
+
+  // Service sales counter
+  const serviceCounts = new Map<string, number>()
+  for (const purchase of purchases || []) {
+    const service = purchase.service_id?.trim() || 'No Service'
+    serviceCounts.set(service, (serviceCounts.get(service) || 0) + 1)
+  }
+
+  const aggregatedServiceCounts: { name: string; count: number }[] = []
+  let otherCount = 0
+
+  for (const [name, count] of serviceCounts.entries()) {
+    if (count <= 2) {
+      otherCount += count
+    } else {
+      aggregatedServiceCounts.push({ name, count })
+    }
+  }
+
+  if (otherCount > 0) {
+    aggregatedServiceCounts.push({ name: 'אחר', count: otherCount })
+  }
+
+  aggregatedServiceCounts.sort((a, b) => b.count - a.count)
 
   // Monthly chart is based on purchases.sale_date only (not lead/created dates).
   const monthlySales = new Map<string, number>()
@@ -75,36 +100,68 @@ export default async function DashboardPage() {
 
       <main className="p-6">
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-          <section className="rounded-lg border bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
-            <p className="mt-2 text-4xl font-bold text-gray-900">
-              ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-            </p>
-          </section>
+          <div className="space-y-6">
+            <section className="rounded-lg border bg-white p-6 shadow-sm">
+              <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
+              <p className="mt-2 text-4xl font-bold text-gray-900">
+                ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </p>
+            </section>
 
-          <section className="rounded-lg border bg-white p-6 shadow-sm">
+            <section className="rounded-lg border bg-white p-6 shadow-sm">
+              <h2 className="text-sm font-medium text-gray-500 mb-4">Sales by Service</h2>
+              <div className="space-y-3">
+                {aggregatedServiceCounts.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-sm text-gray-700 truncate" title={item.name}>
+                        {item.name}
+                      </span>
+                      {item.name === 'אחר' && (
+                        <div className="group relative flex items-center">
+                          <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg z-10 text-center">
+                            שירותים שנמכרו פעמיים או פחות מאוחדים כאן
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-0.5 rounded shrink-0">
+                      {item.count}
+                    </span>
+                  </div>
+                ))}
+                {aggregatedServiceCounts.length === 0 && (
+                  <p className="text-sm text-gray-500">No services sold yet.</p>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <section className="rounded-lg border bg-white p-4 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-800">Sales by Month</h2>
 
             {chartItems.length === 0 ? (
-              <p className="mt-6 text-sm text-gray-500">No sales with sale date yet.</p>
+              <p className="mt-4 text-sm text-gray-500">No sales with sale date yet.</p>
             ) : (
-              <div className="mt-6 overflow-x-auto">
+              <div className="mt-4 overflow-x-auto">
                 <div className="flex min-w-[720px] items-end gap-4 pb-1">
                   {chartItems.map((item) => {
                     const heightPercent = chartMax > 0 ? Math.max((item.total / chartMax) * 100, 6) : 0
 
                     return (
-                      <div key={item.key} className="flex w-[76px] flex-col items-center gap-2">
-                        <span className="text-sm font-semibold text-gray-700">
+                      <div key={item.key} className="flex w-[76px] flex-col items-center gap-1.5">
+                        <span className="text-xs font-semibold text-gray-700">
                           {Math.round(item.total).toLocaleString('en-US')}
                         </span>
-                        <div className="flex h-[180px] w-full items-end rounded bg-gray-100 px-1">
+                        <div className="flex h-[150px] w-full items-end rounded bg-gray-100 px-1">
                           <div
                             className="w-full rounded-t bg-blue-500"
                             style={{ height: `${heightPercent}%` }}
                           />
                         </div>
-                        <span className="text-center text-xs text-gray-600">{item.label}</span>
+                        <span className="text-center text-[10px] text-gray-600 leading-tight h-7 flex items-center">{item.label}</span>
                       </div>
                     )
                   })}
@@ -114,13 +171,13 @@ export default async function DashboardPage() {
           </section>
         </div>
 
-        <section className="mt-6 rounded-lg border bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-800">Users & Roles</h2>
-          <div className="mt-3 space-y-2">
+        <section className="mt-6 rounded-lg border bg-white p-3 shadow-sm max-w-md">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Users & Roles</h2>
+          <div className="mt-2 divide-y divide-gray-100">
             {USER_ROLE_LIST.map((entry) => (
-              <div key={entry.email} className="flex items-center justify-between text-sm">
-                <span className="text-gray-700">{entry.email}</span>
-                <span className="text-gray-500">{entry.role}</span>
+              <div key={entry.email} className="flex items-center justify-between py-1.5 text-[11px]">
+                <span className="text-gray-600 font-medium">{entry.email}</span>
+                <span className="text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">{entry.role}</span>
               </div>
             ))}
           </div>

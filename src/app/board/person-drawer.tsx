@@ -423,7 +423,7 @@ export function PersonDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-[400px] sm:w-[540px] sm:max-w-none flex flex-col overflow-hidden p-0">
+      <SheetContent className="w-[400px] sm:w-[480px] sm:max-w-none flex flex-col overflow-hidden p-0 h-[85vh] sm:h-[80vh] top-1/2 -translate-y-1/2 right-6 rounded-xl border shadow-2xl">
         <SheetHeader className="px-6 py-4 border-b bg-gray-50/50 space-y-1">
           <SheetTitle className="text-xl">{person.full_name}</SheetTitle>
           <SheetDescription className="flex items-center gap-2">

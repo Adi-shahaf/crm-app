@@ -24,6 +24,7 @@ const DEFAULT_USER_ROLE: UserRole = 'admin'
 const USER_ROLE_BY_EMAIL: Record<string, UserRole> = {
   'adi@synergytech.co.il': 'admin',
   'elattiass@gmail.com': 'sales',
+  'ido@synergytech.co.il': 'sales',
   'shai@synergytech.co.il': 'project_manager',
   'yuval@synergytech.co.il': 'admin',
 }
