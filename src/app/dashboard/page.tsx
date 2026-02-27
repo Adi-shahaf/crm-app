@@ -32,6 +32,27 @@ export default async function DashboardPage() {
     return <div>Error loading dashboard data</div>
   }
 
+  // Fetch people and groups for conversion rate
+  // Note: Supabase has a default limit of 1000 rows. We use count: 'exact' to get the true total.
+  const [peopleRes, groupsRes] = await Promise.all([
+    supabase.from('people').select('group_id', { count: 'exact' }),
+    supabase.from('groups').select('id, name')
+  ])
+
+  const people = peopleRes.data || []
+  const totalPeople = peopleRes.count || people.length
+  const groups = groupsRes.data || []
+
+  const clientGroupIds = new Set(
+    groups
+      .filter(g => ['לקוחות', 'לקוחות גדולים', 'ארכיון לקוחות'].includes(g.name))
+      .map(g => g.id)
+  )
+
+  const totalPeople = people.length
+  const totalClients = people.filter(p => p.group_id && clientGroupIds.has(p.group_id)).length
+  const conversionRate = totalPeople > 0 ? (totalClients / totalPeople) * 100 : 0
+
   const totalContractsSold = (purchases || []).reduce(
     (sum, purchase: { price: number | string | null }) => {
       const amount = typeof purchase.price === 'number' ? purchase.price : Number(purchase.price || 0)
@@ -101,11 +122,58 @@ export default async function DashboardPage() {
       <main className="p-6">
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
           <div className="space-y-6">
-            <section className="rounded-lg border bg-white p-6 shadow-sm">
-              <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
-              <p className="mt-2 text-4xl font-bold text-gray-900">
-                ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-              </p>
+            <div className="grid grid-cols-2 gap-4">
+              <section className="rounded-lg border bg-white p-6 shadow-sm">
+                <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
+                <p className="mt-2 text-3xl font-bold text-gray-900">
+                  ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
+              </section>
+
+              <section className="rounded-lg border bg-white p-6 shadow-sm">
+                <h2 className="text-sm font-medium text-gray-500">Conversion Rate</h2>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <p className="text-3xl font-bold text-gray-900">
+                    {conversionRate.toFixed(1)}%
+                  </p>
+                  <span className="text-xs text-gray-400 font-normal">
+                    ({totalClients}/{totalPeople})
+                  </span>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <section className="rounded-lg border bg-white p-4 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-800">Sales by Month</h2>
+
+              {chartItems.length === 0 ? (
+                <p className="mt-4 text-sm text-gray-500">No sales with sale date yet.</p>
+              ) : (
+                <div className="mt-4 overflow-x-auto">
+                  <div className="flex min-w-[720px] items-end gap-4 pb-1">
+                    {chartItems.map((item) => {
+                      const heightPercent = chartMax > 0 ? Math.max((item.total / chartMax) * 100, 6) : 0
+
+                      return (
+                        <div key={item.key} className="flex w-[76px] flex-col items-center gap-1.5">
+                          <span className="text-xs font-semibold text-gray-700">
+                            {Math.round(item.total).toLocaleString('en-US')}
+                          </span>
+                          <div className="flex h-[150px] w-full items-end rounded bg-gray-100 px-1">
+                            <div
+                              className="w-full rounded-t bg-blue-500"
+                              style={{ height: `${heightPercent}%` }}
+                            />
+                          </div>
+                          <span className="text-center text-[10px] text-gray-600 leading-tight h-7 flex items-center">{item.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </section>
 
             <section className="rounded-lg border bg-white p-6 shadow-sm">
@@ -138,37 +206,6 @@ export default async function DashboardPage() {
               </div>
             </section>
           </div>
-
-          <section className="rounded-lg border bg-white p-4 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-800">Sales by Month</h2>
-
-            {chartItems.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-500">No sales with sale date yet.</p>
-            ) : (
-              <div className="mt-4 overflow-x-auto">
-                <div className="flex min-w-[720px] items-end gap-4 pb-1">
-                  {chartItems.map((item) => {
-                    const heightPercent = chartMax > 0 ? Math.max((item.total / chartMax) * 100, 6) : 0
-
-                    return (
-                      <div key={item.key} className="flex w-[76px] flex-col items-center gap-1.5">
-                        <span className="text-xs font-semibold text-gray-700">
-                          {Math.round(item.total).toLocaleString('en-US')}
-                        </span>
-                        <div className="flex h-[150px] w-full items-end rounded bg-gray-100 px-1">
-                          <div
-                            className="w-full rounded-t bg-blue-500"
-                            style={{ height: `${heightPercent}%` }}
-                          />
-                        </div>
-                        <span className="text-center text-[10px] text-gray-600 leading-tight h-7 flex items-center">{item.label}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </section>
         </div>
 
         <section className="mt-6 rounded-lg border bg-white p-3 shadow-sm max-w-md">

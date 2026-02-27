@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useDeferredValue } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Group, PersonWithGroup } from '@/types/database'
 import {
@@ -202,6 +202,7 @@ export function BoardClient({
   const [selectedProjectsPerson, setSelectedProjectsPerson] = useState<PersonWithGroup | null>(null)
   const [selectedDrawerTab, setSelectedDrawerTab] = useState<DrawerTab>('notes')
   const [searchTerm, setSearchTerm] = useState('')
+  const deferredSearchTerm = useDeferredValue(searchTerm)
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() =>
     applyColumnAccess(DEFAULT_VISIBLE_COLUMNS, columnAccess)
   )
@@ -391,8 +392,8 @@ export function BoardClient({
     return filterPeopleByGroupAccess(byRole, allowedGroupIds)
   }, [groups, people, userEmail])
   const filteredPeople = useMemo(
-    () => accessiblePeople.filter((person) => personMatchesSearch(person, searchTerm)),
-    [accessiblePeople, searchTerm]
+    () => accessiblePeople.filter((person) => personMatchesSearch(person, deferredSearchTerm)),
+    [accessiblePeople, deferredSearchTerm]
   )
   const visibleColumnCount = useMemo(
     () => BOARD_COLUMNS.filter((column) => visibleColumns[column]).length,
@@ -403,7 +404,7 @@ export function BoardClient({
       BOARD_COLUMNS.filter((column) => columnAccess[column] && visibleColumns[column]).length,
     [columnAccess, visibleColumns]
   )
-  const visibleGroups = searchTerm.trim()
+  const visibleGroups = deferredSearchTerm.trim()
     ? groups.filter((group) => filteredPeople.some((person) => person.group_id === group.id))
     : groups
 
@@ -508,7 +509,7 @@ export function BoardClient({
           group={group} 
           groups={groups}
           people={filteredPeople.filter((p) => p.group_id === group.id)} 
-          shouldAutoExpand={searchTerm.trim().length > 0}
+          shouldAutoExpand={deferredSearchTerm.trim().length > 0}
           purchaseCounts={purchaseCounts}
           purchaseTotals={purchaseTotals}
           noteCounts={noteCounts}
