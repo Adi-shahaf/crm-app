@@ -628,7 +628,15 @@ function GroupSection({
   const [isCreating, setIsCreating] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
+  const [renderedCount, setRenderedCount] = useState(50)
   const isOpen = shouldAutoExpand && people.length > 0 ? true : manuallyOpen
+
+  useEffect(() => {
+    if (!isOpen) {
+      const t = setTimeout(() => setRenderedCount(50), 300)
+      return () => clearTimeout(t)
+    }
+  }, [isOpen])
 
   const validSelectedIds = selectedIds.filter((id) => people.some((person) => person.id === id))
   const allSelected = people.length > 0 && validSelectedIds.length === people.length
@@ -817,7 +825,7 @@ function GroupSection({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedPeople.map((person) => (
+              {sortedPeople.slice(0, renderedCount).map((person) => (
                 <EditableRow 
                   key={person.id} 
                   person={person} 
@@ -843,6 +851,28 @@ function GroupSection({
                   canAccessProjectKanban={canAccessProjectKanban}
                 />
               ))}
+
+              {renderedCount < sortedPeople.length && (
+                <TableRow
+                  ref={(node) => {
+                    if (!node) return
+                    const observer = new IntersectionObserver(
+                      ([entry]) => {
+                        if (entry.isIntersecting) {
+                          setRenderedCount((prev) => prev + 50)
+                        }
+                      },
+                      { rootMargin: '200px' }
+                    )
+                    observer.observe(node)
+                    return () => observer.disconnect()
+                  }}
+                >
+                  <TableCell colSpan={visibleColumnCount + 1} className="h-14 text-center text-sm text-gray-500">
+                    טוען עוד...
+                  </TableCell>
+                </TableRow>
+              )}
               
               {/* Add New Row */}
               <TableRow className="hover:bg-gray-50/50">
