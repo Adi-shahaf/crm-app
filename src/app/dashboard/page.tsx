@@ -114,6 +114,90 @@ export default async function DashboardPage() {
 
   const chartMax = chartItems.reduce((max, item) => Math.max(max, item.total), 0)
 
+  // --- Weekly Leads Chart (Past 10 Weeks, Sunday to Saturday in Israel) ---
+  let peopleDates: { created_at: string; sheet_datetime?: string | null }[] = []
+  
+  let { data: datesBatch, error: datesError } = await supabase
+    .from('people')
+    .select('created_at, sheet_datetime')
+    .order('created_at', { ascending: false })
+    .limit(3000)
+
+  if (datesError && datesError.message.includes('sheet_datetime')) {
+    const fallback = await supabase
+      .from('people')
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(3000)
+    datesBatch = fallback.data
+    datesError = fallback.error
+  }
+
+  peopleDates = datesBatch || []
+
+  function getStartOfWeekIsrael(date: Date) {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Jerusalem',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
+    
+    const parts = formatter.formatToParts(date)
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value || '00'
+    
+    const ilYear = parseInt(getPart('year'), 10)
+    const ilMonth = parseInt(getPart('month'), 10) - 1
+    const ilDay = parseInt(getPart('day'), 10)
+    
+    const ilDate = new Date(Date.UTC(ilYear, ilMonth, ilDay))
+    const day = ilDate.getUTCDay() // 0 = Sunday
+    ilDate.setUTCDate(ilDate.getUTCDate() - day)
+    
+    return ilDate
+  }
+
+  const now = new Date()
+  const currentWeekStart = getStartOfWeekIsrael(now)
+  
+  const weeklyLeads = new Map<string, number>()
+  for (let i = 0; i < 10; i++) {
+    const weekStart = new Date(currentWeekStart.getTime())
+    weekStart.setUTCDate(weekStart.getUTCDate() - (i * 7))
+    const weekKey = weekStart.toISOString().split('T')[0]
+    weeklyLeads.set(weekKey, 0)
+  }
+
+  for (const person of peopleDates) {
+    const dateStr = person.sheet_datetime || person.created_at
+    if (!dateStr) continue
+    const date = new Date(dateStr)
+    const weekStart = getStartOfWeekIsrael(date)
+    const weekKey = weekStart.toISOString().split('T')[0]
+    if (weeklyLeads.has(weekKey)) {
+      weeklyLeads.set(weekKey, weeklyLeads.get(weekKey)! + 1)
+    }
+  }
+
+  const weeklyChartItems = Array.from(weeklyLeads.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, total]) => {
+      const date = new Date(`${key}T00:00:00.000Z`)
+      const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })
+      const day = date.getUTCDate()
+      const year = date.getUTCFullYear().toString().slice(2)
+      return {
+        key,
+        label: `${month} ${day}, '${year}`,
+        total
+      }
+    })
+
+  const weeklyChartMax = weeklyChartItems.reduce((max, item) => Math.max(max, item.total), 0)
+
+  // --- Formatting for the weekly chart (thin/small design) ---
+  const weeklyChartWidth = weeklyChartItems.length * 24 // 12px bar + 12px gap approx
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center">
@@ -213,6 +297,61 @@ export default async function DashboardPage() {
                   </div>
                 </div>
               )}
+            </section>
+
+            <section className="rounded-lg border bg-white p-4 shadow-sm max-w-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-800">לידים לשבוע</h2>
+              </div>
+              
+              <div className="mt-4 relative h-[180px] w-full border-b border-gray-200">
+                {/* Y-axis grid lines */}
+                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                  {[100, 75, 50, 25, 0].map((val) => (
+                    <div key={val} className="flex items-center gap-2 w-full">
+                      <span className="text-[10px] text-gray-400 w-6 text-right">{val}</span>
+                      <div className="flex-1 border-t border-gray-100" />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Bars container */}
+                <div className="absolute inset-0 left-8 overflow-visible">
+                  <div className="flex items-end gap-2 h-full pb-0 pt-8 px-2">
+                    {weeklyChartItems.map((item) => {
+                      const dynamicMax = Math.max(weeklyChartMax, 10)
+                      const heightPercent = (item.total / dynamicMax) * 100
+
+                      return (
+                        <div key={item.key} className="flex flex-col items-center group relative w-6 h-full justify-end">
+                          {/* Value on top of bar */}
+                          <div 
+                            className="absolute left-1/2 -translate-x-1/2 mb-1 z-10" 
+                            style={{ bottom: `${Math.max(heightPercent, 5)}%` }}
+                          >
+                            <span className="text-[10px] font-bold text-gray-700 whitespace-nowrap">
+                              {item.total}
+                            </span>
+                          </div>
+
+                          {/* The Bar */}
+                          <div className="w-[12px] rounded-t-sm bg-[#7C9DFF] transition-all hover:bg-[#5C7DFF] relative z-0" 
+                               style={{ height: `${Math.max(heightPercent, 5)}%`, minHeight: '4px' }} 
+                          />
+                          
+                          {/* Label rotated */}
+                          <div className="absolute top-full mt-2 -rotate-45 origin-top-left whitespace-nowrap">
+                            <span className="text-[9px] text-gray-400">
+                              {item.label}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="h-12" /> {/* Spacer for rotated labels */}
             </section>
           </div>
         </div>
