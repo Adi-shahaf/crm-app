@@ -312,6 +312,31 @@ export function BoardClient({
     }
   }
 
+  const handleUpdateMultiplePeople = async (ids: string[], updates: Partial<PersonWithGroup>) => {
+    if (!ids.length) return
+
+    const previousPeople = people.filter((person) => ids.includes(person.id))
+    
+    // Optimistic update
+    setPeople(prev => prev.map(p => ids.includes(p.id) ? { ...p, ...updates } : p))
+
+    const { error } = await supabase
+      .from('people')
+      .update(updates)
+      .in('id', ids)
+
+    if (error) {
+      console.error('Error updating multiple people:', {
+        ids,
+        updates,
+        message: error.message,
+        details: error.details,
+      })
+      // Revert only these people to avoid overwriting unrelated UI changes
+      setPeople((prev) => prev.map((person) => (ids.includes(person.id) ? previousPeople.find(p => p.id === person.id) || person : person)))
+    }
+  }
+
   const handleCreatePerson = async (groupId: string, name: string) => {
     const { data, error } = await supabase
       .from('people')
@@ -528,6 +553,7 @@ export function BoardClient({
           purchaseTotals={purchaseTotals}
           noteCounts={noteCounts}
           onUpdatePerson={handleUpdatePerson}
+          onUpdateMultiplePeople={handleUpdateMultiplePeople}
           onCreatePerson={handleCreatePerson}
           onDeletePeople={handleDeletePeople}
           visibleColumns={visibleColumns}
@@ -597,6 +623,7 @@ function GroupSection({
   purchaseTotals,
   noteCounts,
   onUpdatePerson,
+  onUpdateMultiplePeople,
   onCreatePerson,
   onDeletePeople,
   visibleColumns,
@@ -614,6 +641,7 @@ function GroupSection({
   purchaseTotals: Record<string, number>,
   noteCounts: Record<string, number>,
   onUpdatePerson: (id: string, updates: Partial<PersonWithGroup>) => void,
+  onUpdateMultiplePeople: (ids: string[], updates: Partial<PersonWithGroup>) => void,
   onCreatePerson: (groupId: string, name: string) => void,
   onDeletePeople: (ids: string[]) => void,
   visibleColumns: Record<ColumnKey, boolean>,
@@ -857,7 +885,21 @@ function GroupSection({
                   noteCount={noteCounts[person.id] || 0}
                   visibleColumns={visibleColumns}
                   sellerOptions={sellerOptions}
-                  onUpdate={onUpdatePerson} 
+                  onUpdate={(id, updates) => {
+                    // Prevent bulk updating unique fields accidentally
+                    const keys = Object.keys(updates)
+                    const isBulkUpdatableField = keys.every(key => !['full_name', 'phone', 'email'].includes(key))
+                    
+                    if (validSelectedIds.includes(id) && isBulkUpdatableField && validSelectedIds.length > 1) {
+                      if (window.confirm(`האם ברצונך לעדכן את השדה הזה עבור ${validSelectedIds.length} הפריטים שנבחרו?`)) {
+                        onUpdateMultiplePeople(validSelectedIds, updates)
+                      } else {
+                        onUpdatePerson(id, updates)
+                      }
+                    } else {
+                      onUpdatePerson(id, updates)
+                    }
+                  }} 
                   isSelected={validSelectedIds.includes(person.id)}
                   onToggleSelect={(checked) => {
                     setSelectedIds((prev) =>

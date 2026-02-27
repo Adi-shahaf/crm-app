@@ -62,7 +62,10 @@ function toIsoDateTime_(value: unknown): string | null | undefined {
 }
 
 function getMissingColumn_(message: string) {
-  const match = message.match(/column ["']?([a-zA-Z0-9_]+)["']? does not exist/i)
+  let match = message.match(/column ["']?([a-zA-Z0-9_]+)["']? does not exist/i)
+  if (!match) {
+    match = message.match(/Could not find the ["']?([a-zA-Z0-9_]+)["']? column/i)
+  }
   return match ? match[1] : null
 }
 
