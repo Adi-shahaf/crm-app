@@ -208,6 +208,7 @@ export function BoardClient({
   )
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
   const columnsMenuRef = useRef<HTMLDivElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
   const sellerOptions = useMemo(() => {
     const uniqueEmails = new Set(
@@ -223,6 +224,18 @@ export function BoardClient({
       .sort((a, b) => a.localeCompare(b))
       .map((email) => ({ email, label: getEmailPrefix(email) }))
   }, [userEmail])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+        event.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   useEffect(() => {
     const loadPurchaseStats = async () => {
@@ -446,9 +459,10 @@ export function BoardClient({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
         <Input
+          ref={searchInputRef}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search anything..."
+          placeholder="Search anything... (Ctrl+F)"
           className="max-w-md bg-white"
         />
         <div className="relative" ref={columnsMenuRef}>

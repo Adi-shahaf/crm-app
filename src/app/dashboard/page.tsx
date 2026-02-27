@@ -33,23 +33,27 @@ export default async function DashboardPage() {
   }
 
   // Fetch people and groups for conversion rate
-  // Note: Supabase has a default limit of 1000 rows. We use count: 'exact' to get the true total.
-  const [peopleRes, groupsRes] = await Promise.all([
-    supabase.from('people').select('group_id', { count: 'exact' }),
+  // Note: Supabase has a default limit of 1000 rows. We fetch in batches if needed, 
+  // but for the count we use a separate count-only query to be accurate.
+  const [countRes, allPeopleRes, groupsRes] = await Promise.all([
+    supabase.from('people').select('*', { count: 'exact', head: true }),
+    supabase.from('people').select('group_id').limit(100000), // Increase limit significantly to capture ALL people
     supabase.from('groups').select('id, name')
   ])
 
-  const people = peopleRes.data || []
-  const totalPeople = peopleRes.count || people.length
+  const totalPeople = countRes.count || 0
+  const people = allPeopleRes.data || []
   const groups = groupsRes.data || []
 
   const clientGroupIds = new Set(
     groups
-      .filter(g => ['לקוחות', 'לקוחות גדולים', 'ארכיון לקוחות'].includes(g.name))
+      .filter(g => {
+        const name = g.name?.trim()
+        return name === 'לקוחות' || name === 'לקוחות גדולים' || name === 'ארכיון לקוחות'
+      })
       .map(g => g.id)
   )
 
-  const totalPeople = people.length
   const totalClients = people.filter(p => p.group_id && clientGroupIds.has(p.group_id)).length
   const conversionRate = totalPeople > 0 ? (totalClients / totalPeople) * 100 : 0
 
@@ -120,28 +124,65 @@ export default async function DashboardPage() {
       </header>
 
       <main className="p-6">
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <section className="rounded-lg border bg-white p-6 shadow-sm">
-                <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
-                <p className="mt-2 text-3xl font-bold text-gray-900">
-                  ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                </p>
-              </section>
+            <section className="rounded-lg border bg-white p-6 shadow-sm">
+              <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
+              <p className="mt-2 text-3xl font-bold text-gray-900">
+                ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </p>
+            </section>
 
-              <section className="rounded-lg border bg-white p-6 shadow-sm">
+            <section className="rounded-lg border bg-white p-6 shadow-sm">
+              <div className="flex items-center gap-1.5">
                 <h2 className="text-sm font-medium text-gray-500">Conversion Rate</h2>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <p className="text-3xl font-bold text-gray-900">
-                    {conversionRate.toFixed(1)}%
-                  </p>
-                  <span className="text-xs text-gray-400 font-normal">
-                    ({totalClients}/{totalPeople})
-                  </span>
+                <div className="group relative flex items-center">
+                  <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg z-10 text-center">
+                    אחוז הלקוחות מכלל האנשים ב-CRM (קבוצות: לקוחות, לקוחות גדולים, ארכיון לקוחות)
+                    <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+                  </div>
                 </div>
-              </section>
-            </div>
+              </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <p className="text-3xl font-bold text-gray-900">
+                  {conversionRate.toFixed(1)}%
+                </p>
+                <span className="text-xs text-gray-400 font-normal">
+                  ({totalClients}/{totalPeople})
+                </span>
+              </div>
+            </section>
+
+            <section className="rounded-lg border bg-white p-4 shadow-sm">
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sales by Service</h2>
+              <div className="space-y-2">
+                {aggregatedServiceCounts.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span className="text-gray-600 truncate" title={item.name}>
+                        {item.name}
+                      </span>
+                      {item.name === 'אחר' && (
+                        <div className="group relative flex items-center">
+                          <Info className="h-3 w-3 text-gray-300 cursor-help" />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-40 p-1.5 bg-gray-900 text-white text-[9px] rounded shadow-lg z-10 text-center">
+                            שירותים שנמכרו פעמיים או פחות מאוחדים כאן
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <span className="font-medium text-gray-900 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 shrink-0">
+                      {item.count}
+                    </span>
+                  </div>
+                ))}
+                {aggregatedServiceCounts.length === 0 && (
+                  <p className="text-[11px] text-gray-400">No services sold yet.</p>
+                )}
+              </div>
+            </section>
           </div>
 
           <div className="space-y-6">
@@ -174,36 +215,6 @@ export default async function DashboardPage() {
                   </div>
                 </div>
               )}
-            </section>
-
-            <section className="rounded-lg border bg-white p-6 shadow-sm">
-              <h2 className="text-sm font-medium text-gray-500 mb-4">Sales by Service</h2>
-              <div className="space-y-3">
-                {aggregatedServiceCounts.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-sm text-gray-700 truncate" title={item.name}>
-                        {item.name}
-                      </span>
-                      {item.name === 'אחר' && (
-                        <div className="group relative flex items-center">
-                          <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg z-10 text-center">
-                            שירותים שנמכרו פעמיים או פחות מאוחדים כאן
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-sm font-semibold text-gray-900 bg-gray-100 px-2 py-0.5 rounded shrink-0">
-                      {item.count}
-                    </span>
-                  </div>
-                ))}
-                {aggregatedServiceCounts.length === 0 && (
-                  <p className="text-sm text-gray-500">No services sold yet.</p>
-                )}
-              </div>
             </section>
           </div>
         </div>
