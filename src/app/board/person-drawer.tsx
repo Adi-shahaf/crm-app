@@ -32,6 +32,27 @@ const PAYMENT_METHOD_OPTIONS = [
   'אחר',
 ]
 
+const SERVICE_OPTIONS = [
+  'בדיקת היתכנות',
+  'אפיון טכני',
+  'עיצוב - UX+UI',
+  'לוגו וברנד בוק',
+  'תוכנית עסקית',
+  'מחקר שוק ומתחרים',
+  'פיתוח תוכנה ואפליקציות',
+  'אפיון טכני - הנדסי',
+  'עיצוב הדמיה',
+  'אסטרטגיית שיווק',
+  'פטנט פרוביזורי',
+  'תקנון ומדיניות שימוש',
+  'ייצור אבטיפוס',
+  'עיצוב אריזה',
+  'תחזית פיננסית ל5 שנים',
+  'מצגת משקיעים',
+  'חוות דעת עם מהנדס',
+  'שיווק לעסק',
+]
+
 const getTodayDateInput = () => new Date().toISOString().split('T')[0]
 const formatNoteDateTime = (value: string | null | undefined) => {
   if (!value) return '-'
@@ -517,11 +538,21 @@ export function PersonDrawer({
 
                 {isPurchaseFormOpen ? (
                   <div className="mt-3 space-y-3">
-                    <Input
-                      placeholder="שם השירות"
+                    <Select
                       value={newPurchase.serviceName}
-                      onChange={(e) => setNewPurchase((prev) => ({ ...prev, serviceName: e.target.value }))}
-                    />
+                      onValueChange={(value) => setNewPurchase((prev) => ({ ...prev, serviceName: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="שם השירות" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SERVICE_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Input
                       type="number"
                       min="0"
@@ -578,11 +609,21 @@ export function PersonDrawer({
                       <div key={p.id} className="p-4 border rounded-lg bg-white shadow-sm space-y-1">
                         {editingPurchaseId === p.id ? (
                           <div className="space-y-3">
-                            <Input
-                              placeholder="שם השירות"
+                            <Select
                               value={editingPurchase.serviceName}
-                              onChange={(e) => setEditingPurchase((prev) => ({ ...prev, serviceName: e.target.value }))}
-                            />
+                              onValueChange={(value) => setEditingPurchase((prev) => ({ ...prev, serviceName: value }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="שם השירות" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {SERVICE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                             <Input
                               type="number"
                               min="0"
