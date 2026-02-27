@@ -629,6 +629,27 @@ function GroupSection({
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
   const [renderedCount, setRenderedCount] = useState(50)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`group-expanded-${group.id}`)
+      if (saved !== null) {
+        setManuallyOpen(saved === 'true')
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }, [group.id])
+
+  const handleOpenChange = (open: boolean) => {
+    setManuallyOpen(open)
+    try {
+      localStorage.setItem(`group-expanded-${group.id}`, String(open))
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }
+
   const isOpen = shouldAutoExpand && people.length > 0 ? true : manuallyOpen
 
   useEffect(() => {
@@ -721,7 +742,7 @@ function GroupSection({
   return (
     <Collapsible
       open={isOpen}
-      onOpenChange={setManuallyOpen}
+      onOpenChange={handleOpenChange}
       className="relative overflow-hidden rounded-md border border-gray-200 bg-white"
     >
       <div
