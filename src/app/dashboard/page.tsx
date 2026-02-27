@@ -125,7 +125,7 @@ export default async function DashboardPage() {
         <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
           <div className="space-y-6">
             <section className="rounded-lg border bg-white p-6 shadow-sm">
-              <h2 className="text-sm font-medium text-gray-500">Total Contracts Sold</h2>
+              <h2 className="text-sm font-medium text-gray-500">סה"כ חוזים שנמכרו</h2>
               <p className="mt-2 text-3xl font-bold text-gray-900">
                 ₪{totalContractsSold.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </p>
@@ -133,7 +133,7 @@ export default async function DashboardPage() {
 
             <section className="rounded-lg border bg-white p-6 shadow-sm">
               <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-medium text-gray-500">Conversion Rate</h2>
+                <h2 className="text-sm font-medium text-gray-500">אחוז המרה</h2>
                 <div className="group relative flex items-center">
                   <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-gray-900 text-white text-[10px] rounded shadow-lg z-10 text-center">
@@ -153,7 +153,7 @@ export default async function DashboardPage() {
             </section>
 
             <section className="rounded-lg border bg-white p-4 shadow-sm">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sales by Service</h2>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">מכירות לפי שירות</h2>
               <div className="space-y-2">
                 {aggregatedServiceCounts.map((item) => (
                   <div key={item.name} className="flex items-center justify-between text-[11px]">
@@ -177,7 +177,7 @@ export default async function DashboardPage() {
                   </div>
                 ))}
                 {aggregatedServiceCounts.length === 0 && (
-                  <p className="text-[11px] text-gray-400">No services sold yet.</p>
+                  <p className="text-[11px] text-gray-400">טרם נמכרו שירותים.</p>
                 )}
               </div>
             </section>
@@ -185,10 +185,10 @@ export default async function DashboardPage() {
 
           <div className="space-y-6">
             <section className="rounded-lg border bg-white p-4 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-800">Sales by Month</h2>
+              <h2 className="text-lg font-semibold text-gray-800">מכירות לפי חודש</h2>
 
               {chartItems.length === 0 ? (
-                <p className="mt-4 text-sm text-gray-500">No sales with sale date yet.</p>
+                <p className="mt-4 text-sm text-gray-500">אין עדיין מכירות עם תאריך מכירה.</p>
               ) : (
                 <div className="mt-4 overflow-x-auto">
                   <div className="flex min-w-[720px] items-end gap-4 pb-1">
@@ -218,7 +218,7 @@ export default async function DashboardPage() {
         </div>
 
         <section className="mt-6 rounded-lg border bg-white p-3 shadow-sm max-w-md">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Users & Roles</h2>
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">משתמשים ותפקידים</h2>
           <div className="mt-2 divide-y divide-gray-100">
             {USER_ROLE_LIST.map((entry) => (
               <div key={entry.email} className="flex items-center justify-between py-1.5 text-[11px]">
