@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2 } from 'lucide-react'
+import { Trash2, MessageSquare, ShoppingCart } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useState, useEffect } from 'react'
 
@@ -423,7 +423,7 @@ export function PersonDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-[400px] sm:w-[480px] sm:max-w-none flex flex-col overflow-hidden p-0 h-[85vh] sm:h-[80vh] top-1/2 -translate-y-1/2 right-6 rounded-xl border shadow-2xl">
+      <SheetContent className="w-[500px] sm:w-[600px] sm:max-w-none flex flex-col overflow-hidden p-0 h-full right-0 rounded-none border-l shadow-2xl">
         <SheetHeader className="px-6 py-4 border-b bg-gray-50/50 space-y-1">
           <SheetTitle className="text-xl">{person.full_name}</SheetTitle>
           <SheetDescription className="flex items-center gap-2">
@@ -448,15 +448,17 @@ export function PersonDrawer({
             <TabsList className="w-full justify-start h-auto bg-transparent p-0 space-x-6">
               <TabsTrigger
                 value="notes"
-                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 pb-2 font-medium"
+                className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 pb-2 font-medium flex items-center gap-2"
               >
+                <MessageSquare className="h-4 w-4" />
                 Notes ({notes.length})
               </TabsTrigger>
               {canAccessSalesTab ? (
                 <TabsTrigger
                   value="purchases"
-                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 pb-2 font-medium"
+                  className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 pb-2 font-medium flex items-center gap-2"
                 >
+                  <ShoppingCart className="h-4 w-4" />
                   Purchases ({purchases.length})
                 </TabsTrigger>
               ) : null}
@@ -467,7 +469,8 @@ export function PersonDrawer({
             <div className="p-4 border-b bg-white">
               <Textarea
                 placeholder="Write an update..."
-                className="min-h-[100px] resize-none mb-2 focus-visible:ring-1"
+                className="min-h-[100px] resize-none mb-2 focus-visible:ring-1 text-right"
+                dir="auto"
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
               />
@@ -489,14 +492,18 @@ export function PersonDrawer({
                   <p className="text-sm text-gray-500 text-center py-8">No updates yet. Write one above!</p>
                 ) : (
                   notes.map(note => (
-                    <div key={note.id} className="bg-white p-4 rounded-lg border shadow-sm space-y-2">
-                      <div className="flex justify-between items-start text-xs text-gray-500">
-                        <div className="space-y-0.5">
-                          <span className="block font-medium text-gray-700 capitalize">{note.type || 'Note'}</span>
-                          <span className="block text-gray-500">By {getNoteAuthorName(note)}</span>
-                        </div>
+                    <div key={note.id} className="bg-white p-4 rounded-lg border shadow-sm space-y-3">
+                      <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                          <span>{formatNoteDateTime(note.created_at)}</span>
+                          <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs">
+                            {getNoteAuthorName(note).substring(0, 2).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-gray-900">{getNoteAuthorName(note)}</span>
+                            <span className="text-[10px] text-gray-400">{formatNoteDateTime(note.created_at)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
                           <Button
                             type="button"
                             variant="ghost"
@@ -511,7 +518,7 @@ export function PersonDrawer({
                           </Button>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{note.content}</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap text-right" dir="auto">{note.content}</p>
                     </div>
                   ))
                 )}
