@@ -8,8 +8,8 @@
  */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-const WEBHOOK_URL = 'https://your-crm-domain.com/api/webhooks/google-sheets?token=secret123';
-const SHEET_NAME = ''; // Optional: exact tab name. Leave empty for active tab.
+const WEBHOOK_URL = 'https://crm-app-eight-xi.vercel.app/api/webhooks/google-sheets?token=crm_webhook_8f2a4a6d3a12462bb9c4f2d1f7ad61fe';
+const SHEET_NAME = ''; // optional: exact tab name, or leave '' for active tab
 const KEY_PREFIX = 'LAST_PROCESSED_ROW_';
 
 function getSheet_() {
@@ -68,7 +68,6 @@ function postWithRetry_(payload, rowNumber) {
 
 function postRow_(sheet, rowNumber) {
   if (rowNumber <= 1) return;
-
   const map = headerMap_(sheet);
   const row = sheet.getRange(rowNumber, 1, 1, sheet.getLastColumn()).getValues()[0];
 
@@ -77,17 +76,19 @@ function postRow_(sheet, rowNumber) {
 
   const phone = val_(row, map, ['Phone Number', 'Phone']);
   const email = val_(row, map, ['Email']);
-  const source = val_(row, map, ['Source']) || 'Google Sheets';
   const campaign = val_(row, map, ['Campaign']);
-  const adSet = val_(row, map, ['Ad Set']);
   const ad = val_(row, map, ['Ad', 'Ad Name']);
   const dateTime = val_(row, map, ['Date/Time', 'Timestamp', 'TimeStamp']);
+
   const whatsappResponseByHeader = val_(row, map, [
     'WhatsApp Response',
     'Whatsapp Response',
     'Message Status',
     'תגובה להודעת ווטסאפ'
   ]);
+
+  // Exact Column A (1-based): index 0
+  const columnA = row.length >= 1 ? row[0] : '';
 
   // Exact Column O (1-based): index 14
   const columnO = row.length >= 15 ? row[14] : '';
@@ -97,7 +98,7 @@ function postRow_(sheet, rowNumber) {
     name: String(name),
     phone: phone ? String(phone) : '',
     email: email ? String(email) : '',
-    source: [source, campaign, adSet, ad].filter(Boolean).join(' | '),
+    source: columnA ? String(columnA) : 'Google Sheets',
     dateTime: dateTime instanceof Date ? dateTime.toISOString() : dateTime,
     whatsappResponse: whatsappResponse ? String(whatsappResponse) : '',
     columnO: columnO ? String(columnO) : '',
