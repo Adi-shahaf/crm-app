@@ -111,6 +111,7 @@ export async function POST(request: Request) {
     const email = toNullableText_(pickFirst_(body, ['email']))
     const source = toNullableText_(pickFirst_(body, ['columnA', 'A', 'source']))
     const sheetDateTime = toIsoDateTime_(pickFirst_(body, ['dateTime', 'timestamp', 'TimeStamp', 'sheetDateTime', 'sheet_datetime']))
+    const createdAt = sheetDateTime // We use this for created_at
 
     const whatsappResponse = toNullableText_(pickFirst_(body, [
       'whatsappResponse',
@@ -135,6 +136,7 @@ export async function POST(request: Request) {
     if (email !== undefined) updatePayload.email = email
     if (source !== undefined) updatePayload.source = source
     if (sheetDateTime !== undefined) updatePayload.sheet_datetime = sheetDateTime
+    if (createdAt !== undefined) updatePayload.created_at = createdAt
     if (whatsappResponse !== undefined) updatePayload.whatsapp_response = whatsappResponse
     if (employmentStatus !== undefined) updatePayload.employment_status = employmentStatus
     if (leadIdea !== undefined) updatePayload.lead_idea = leadIdea
@@ -201,6 +203,7 @@ export async function POST(request: Request) {
     if (phone !== undefined) insertPayload.phone = phone
     if (email !== undefined) insertPayload.email = email
     if (sheetDateTime !== undefined) insertPayload.sheet_datetime = sheetDateTime
+    if (createdAt !== undefined) insertPayload.created_at = createdAt
     if (whatsappResponse !== undefined) insertPayload.whatsapp_response = whatsappResponse
     if (employmentStatus !== undefined) insertPayload.employment_status = employmentStatus
     if (leadIdea !== undefined) insertPayload.lead_idea = leadIdea
