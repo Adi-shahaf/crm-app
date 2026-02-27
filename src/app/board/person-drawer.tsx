@@ -23,11 +23,10 @@ import { createClient } from '@/utils/supabase/client'
 import { useState, useEffect } from 'react'
 
 const PAYMENT_METHOD_OPTIONS = [
-  'מזומן',
   'כרטיס אשראי',
   'העברה בנקאית',
+  'מזומן',
   'ביט',
-  'פייבוקס',
   "צ'ק",
   'אחר',
 ]
@@ -561,26 +560,29 @@ export function PersonDrawer({
                       value={newPurchase.price}
                       onChange={(e) => setNewPurchase((prev) => ({ ...prev, price: e.target.value }))}
                     />
-                    <Input
-                      type="date"
-                      value={newPurchase.saleDate}
-                      onChange={(e) => setNewPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
-                    />
-                    <Select
-                      value={newPurchase.paymentMethod}
-                      onValueChange={(value) => setNewPurchase((prev) => ({ ...prev, paymentMethod: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="אופן התשלום" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAYMENT_METHOD_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={option}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        type="date"
+                        value={newPurchase.saleDate}
+                        onChange={(e) => setNewPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
+                        className="h-10"
+                      />
+                      <Select
+                        value={newPurchase.paymentMethod}
+                        onValueChange={(value) => setNewPurchase((prev) => ({ ...prev, paymentMethod: value }))}
+                      >
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="אופן התשלום" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_METHOD_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <Input
                       placeholder="הסדר תשלומים (טקסט חופשי)"
                       value={newPurchase.installmentPlan}
@@ -632,26 +634,29 @@ export function PersonDrawer({
                               value={editingPurchase.price}
                               onChange={(e) => setEditingPurchase((prev) => ({ ...prev, price: e.target.value }))}
                             />
-                            <Input
-                              type="date"
-                              value={editingPurchase.saleDate}
-                              onChange={(e) => setEditingPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
-                            />
-                            <Select
-                              value={editingPurchase.paymentMethod}
-                              onValueChange={(value) => setEditingPurchase((prev) => ({ ...prev, paymentMethod: value }))}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="אופן התשלום" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {PAYMENT_METHOD_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {option}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Input
+                                type="date"
+                                value={editingPurchase.saleDate}
+                                onChange={(e) => setEditingPurchase((prev) => ({ ...prev, saleDate: e.target.value }))}
+                                className="h-10"
+                              />
+                              <Select
+                                value={editingPurchase.paymentMethod}
+                                onValueChange={(value) => setEditingPurchase((prev) => ({ ...prev, paymentMethod: value }))}
+                              >
+                                <SelectTrigger className="h-10">
+                                  <SelectValue placeholder="אופן התשלום" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PAYMENT_METHOD_OPTIONS.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                      {option}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                             <Input
                               placeholder="הסדר תשלומים (טקסט חופשי)"
                               value={editingPurchase.installmentPlan}
