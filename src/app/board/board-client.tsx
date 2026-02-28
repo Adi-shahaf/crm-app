@@ -27,7 +27,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare, KanbanSquare } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -38,6 +38,11 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { PersonDrawer } from './person-drawer'
 import { ProjectKanbanDialog } from './project-kanban-dialog'
 import { cn } from '@/lib/utils'
@@ -203,6 +208,41 @@ export function BoardClient({
   const [selectedDrawerTab, setSelectedDrawerTab] = useState<DrawerTab>('notes')
   const [searchTerm, setSearchTerm] = useState('')
   const deferredSearchTerm = useDeferredValue(searchTerm)
+
+  const duplicatesByPersonId = useMemo(() => {
+    const phoneToDates = new Map<string, { id: string; date: string }[]>()
+    
+    people.forEach((person) => {
+      const phone = person.phone
+      if (!phone) return
+      
+      const normalized = phone.replace(/\D/g, '').replace(/^(972|0)/, '')
+      if (!normalized) return
+      
+      const date = getPersonDateTime(person)
+      if (!phoneToDates.has(normalized)) {
+        phoneToDates.set(normalized, [])
+      }
+      phoneToDates.get(normalized)!.push({ id: person.id, date })
+    })
+
+    const duplicates = new Map<string, string[]>()
+    phoneToDates.forEach((entries) => {
+      if (entries.length > 1) {
+        entries.forEach((entry) => {
+          const otherDates = entries
+            .filter((e) => e.id !== entry.id)
+            .map((e) => e.date)
+            .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+            
+          duplicates.set(entry.id, otherDates)
+        })
+      }
+    })
+    
+    return duplicates
+  }, [people])
+
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() =>
     applyColumnAccess(DEFAULT_VISIBLE_COLUMNS, columnAccess)
   )
@@ -552,6 +592,7 @@ export function BoardClient({
           purchaseCounts={purchaseCounts}
           purchaseTotals={purchaseTotals}
           noteCounts={noteCounts}
+          duplicatesByPersonId={duplicatesByPersonId}
           onUpdatePerson={handleUpdatePerson}
           onUpdateMultiplePeople={handleUpdateMultiplePeople}
           onCreatePerson={handleCreatePerson}
@@ -622,6 +663,7 @@ function GroupSection({
   purchaseCounts,
   purchaseTotals,
   noteCounts,
+  duplicatesByPersonId,
   onUpdatePerson,
   onUpdateMultiplePeople,
   onCreatePerson,
@@ -640,6 +682,7 @@ function GroupSection({
   purchaseCounts: Record<string, number>,
   purchaseTotals: Record<string, number>,
   noteCounts: Record<string, number>,
+  duplicatesByPersonId: Map<string, string[]>,
   onUpdatePerson: (id: string, updates: Partial<PersonWithGroup>) => void,
   onUpdateMultiplePeople: (ids: string[], updates: Partial<PersonWithGroup>) => void,
   onCreatePerson: (groupId: string, name: string) => void,
@@ -883,6 +926,7 @@ function GroupSection({
                   purchaseCount={purchaseCounts[person.id] || 0}
                   purchaseTotal={purchaseTotals[person.id] || 0}
                   noteCount={noteCounts[person.id] || 0}
+                  duplicates={duplicatesByPersonId.get(person.id) || []}
                   visibleColumns={visibleColumns}
                   sellerOptions={sellerOptions}
                   onUpdate={(id, updates) => {
@@ -991,6 +1035,7 @@ function EditableRow({
   purchaseCount,
   purchaseTotal,
   noteCount,
+  duplicates,
   visibleColumns,
   sellerOptions,
   onUpdate,
@@ -1007,6 +1052,7 @@ function EditableRow({
   purchaseCount: number,
   purchaseTotal: number,
   noteCount: number,
+  duplicates: string[],
   visibleColumns: Record<ColumnKey, boolean>,
   sellerOptions: SellerOption[],
   onUpdate: (id: string, updates: Partial<PersonWithGroup>) => void,
@@ -1057,6 +1103,7 @@ function EditableRow({
   const renderCell = (field: keyof PersonWithGroup, value: string | number | null, isNumber = false) => {
     const isWhatsappResponseField = field === 'whatsapp_response'
     const isLeadIdeaField = field === 'lead_idea'
+    const isFullNameField = field === 'full_name'
 
     return (
       <TableCell 
@@ -1082,11 +1129,23 @@ function EditableRow({
           />
         ) : (
           <span className={cn(
-            'text-gray-700 block truncate', 
+            'text-gray-700 flex items-center gap-1.5 truncate', 
             isWhatsappResponseField && 'max-w-[180px]',
             isLeadIdeaField && 'max-w-[200px]'
           )}>
-            {value || '-'}
+            {isFullNameField && duplicates.length > 0 && (
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>
+                  <div className="cursor-help" onClick={(e) => e.stopPropagation()}>
+                    <Copy className="h-3.5 w-3.5 text-blue-500" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>השאיר פרטים גם ב {duplicates.map(d => new Date(d).toLocaleDateString('he-IL')).join(', ')}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            <span className="truncate">{value || '-'}</span>
           </span>
         )}
       </TableCell>
