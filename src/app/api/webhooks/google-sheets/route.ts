@@ -121,6 +121,12 @@ export async function POST(request: Request) {
       'messageStatus',
       'message_status',
     ]))
+    const unansweredCallsCount = toNullableText_(pickFirst_(body, [
+      'unansweredCallsCount',
+      'unanswered_calls_count',
+      'missedCallsCount',
+      'missed_calls_count',
+    ]))
     const employmentStatus = toNullableText_(pickFirst_(body, ['employmentStatus', 'employment_status']))
     const leadIdea = toNullableText_(pickFirst_(body, ['leadIdea', 'lead_idea']))
     const seller = toNullableText_(pickFirst_(body, ['seller']))
@@ -138,6 +144,7 @@ export async function POST(request: Request) {
     if (sheetDateTime !== undefined) updatePayload.sheet_datetime = sheetDateTime
     if (createdAt !== undefined) updatePayload.created_at = createdAt
     if (whatsappResponse !== undefined) updatePayload.whatsapp_response = whatsappResponse
+    if (unansweredCallsCount !== undefined) updatePayload.unanswered_calls_count = unansweredCallsCount
     if (employmentStatus !== undefined) updatePayload.employment_status = employmentStatus
     if (leadIdea !== undefined) updatePayload.lead_idea = leadIdea
     if (seller !== undefined) updatePayload.seller = seller
@@ -205,6 +212,7 @@ export async function POST(request: Request) {
     if (sheetDateTime !== undefined) insertPayload.sheet_datetime = sheetDateTime
     if (createdAt !== undefined) insertPayload.created_at = createdAt
     if (whatsappResponse !== undefined) insertPayload.whatsapp_response = whatsappResponse
+    if (unansweredCallsCount !== undefined) insertPayload.unanswered_calls_count = unansweredCallsCount
     if (employmentStatus !== undefined) insertPayload.employment_status = employmentStatus
     if (leadIdea !== undefined) insertPayload.lead_idea = leadIdea
     if (seller !== undefined) insertPayload.seller = seller

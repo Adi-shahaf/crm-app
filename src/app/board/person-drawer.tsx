@@ -18,9 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2, MessageSquare, ShoppingCart } from 'lucide-react'
+import { Trash2, MessageSquare, ShoppingCart, PhoneOff } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
 import { useState, useEffect } from 'react'
+import {
+  getNextUnansweredCallsCount,
+  isMaxUnansweredCallsCount,
+} from '@/lib/unanswered-calls'
 
 const PAYMENT_METHOD_OPTIONS = [
   'כרטיס אשראי',
@@ -96,7 +100,8 @@ export function PersonDrawer({
   onPurchaseCreated,
   onPurchaseUpdated,
   onPurchaseDeleted,
-  onNotesChanged
+  onNotesChanged,
+  onUnansweredCallsUpdated,
 }: {
   person: PersonWithGroup | null,
   isOpen: boolean,
@@ -106,7 +111,8 @@ export function PersonDrawer({
   onPurchaseCreated?: (personId: string, price: number) => void,
   onPurchaseUpdated?: (personId: string, previousPrice: number, nextPrice: number) => void,
   onPurchaseDeleted?: (personId: string, price: number) => void,
-  onNotesChanged?: (personId: string, delta: number) => void
+  onNotesChanged?: (personId: string, delta: number) => void,
+  onUnansweredCallsUpdated?: (personId: string, nextValue: string) => void
 }) {
   const [notes, setNotes] = useState<Note[]>([])
   const [purchases, setPurchases] = useState<Purchase[]>([])
@@ -137,6 +143,8 @@ export function PersonDrawer({
   const [isUpdatingPurchaseId, setIsUpdatingPurchaseId] = useState<string | null>(null)
   const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
   const [editPurchaseError, setEditPurchaseError] = useState('')
+  const [isUpdatingUnansweredCalls, setIsUpdatingUnansweredCalls] = useState(false)
+  const [unansweredCallsError, setUnansweredCallsError] = useState('')
   const supabase = createClient()
 
   const getNoteAuthorName = (note: Note) => {
@@ -411,6 +419,30 @@ export function PersonDrawer({
     setDeletingPurchaseId(null)
   }
 
+  const handleBumpUnansweredCalls = async () => {
+    if (!person || isUpdatingUnansweredCalls || isMaxUnansweredCallsCount(person.unanswered_calls_count)) {
+      return
+    }
+
+    const nextValue = getNextUnansweredCallsCount(person.unanswered_calls_count)
+    setUnansweredCallsError('')
+    setIsUpdatingUnansweredCalls(true)
+
+    const { error } = await supabase
+      .from('people')
+      .update({ unanswered_calls_count: nextValue })
+      .eq('id', person.id)
+
+    if (error) {
+      setUnansweredCallsError(`עדכון לא נשמר: ${getSupabaseErrorMessage(error)}`)
+      setIsUpdatingUnansweredCalls(false)
+      return
+    }
+
+    onUnansweredCallsUpdated?.(person.id, nextValue)
+    setIsUpdatingUnansweredCalls(false)
+  }
+
   const canCreatePurchase =
     !!newPurchase.serviceName.trim() &&
     !!newPurchase.paymentMethod &&
@@ -437,6 +469,27 @@ export function PersonDrawer({
               <span>No phone</span>
             )}
           </SheetDescription>
+          <div className="pt-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="inline-flex items-center gap-2"
+              onClick={handleBumpUnansweredCalls}
+              disabled={isUpdatingUnansweredCalls || isMaxUnansweredCallsCount(person.unanswered_calls_count)}
+            >
+              <PhoneOff className="h-4 w-4" />
+              <span>
+                {isUpdatingUnansweredCalls ? 'מעדכן...' : 'לא ענה'}
+              </span>
+            </Button>
+            <span className="ml-2 text-xs text-gray-500">
+              {person.unanswered_calls_count || 'טרם סומן'}
+            </span>
+            {unansweredCallsError ? (
+              <p className="mt-2 text-sm text-red-600">{unansweredCallsError}</p>
+            ) : null}
+          </div>
         </SheetHeader>
 
         <Tabs

@@ -27,7 +27,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -46,6 +46,7 @@ import {
 import { PersonDrawer } from './person-drawer'
 import { ProjectKanbanDialog } from './project-kanban-dialog'
 import { cn } from '@/lib/utils'
+import { UNANSWERED_CALLS_OPTIONS } from '@/lib/unanswered-calls'
 
 type SortField = 'full_name' | 'sheet_datetime' | 'score_1_3' | 'total_contracts'
 type SortDirection = 'asc' | 'desc'
@@ -54,6 +55,78 @@ type DrawerTab = 'notes' | 'purchases'
 type ColumnKey = BoardColumnKey
 type SellerOption = { email: string; label: string }
 const NO_SELLER_VALUE = '__none__'
+const NO_UNANSWERED_CALLS_VALUE = '__none_unanswered_calls__'
+const UNANSWERED_CALLS_DOT_CLASS: Record<string, string> = {
+  [UNANSWERED_CALLS_OPTIONS[0]]: 'bg-gray-300',
+  [UNANSWERED_CALLS_OPTIONS[1]]: 'bg-gray-400',
+  [UNANSWERED_CALLS_OPTIONS[2]]: 'bg-gray-500',
+  [UNANSWERED_CALLS_OPTIONS[3]]: 'bg-gray-600',
+  [UNANSWERED_CALLS_OPTIONS[4]]: 'bg-gray-700',
+}
+const OPTIONAL_DB_COLUMNS = new Set<keyof PersonWithGroup>(['unanswered_calls_count'])
+const getUnansweredCallsDotClass = (value: string | null | undefined) =>
+  value ? UNANSWERED_CALLS_DOT_CLASS[value] || 'bg-gray-300' : 'bg-gray-200'
+const getErrorMessage = (error: unknown) => {
+  if (!error) return null
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    return typeof message === 'string' ? message : null
+  }
+  return null
+}
+
+const getMissingColumnFromError = (error: unknown) => {
+  const message = getErrorMessage(error)
+  if (!message) return null
+
+  let match = message.match(/column ["']?([a-zA-Z0-9_]+)["']? does not exist/i)
+  if (!match) {
+    match = message.match(/Could not find the ["']?([a-zA-Z0-9_]+)["']? column/i)
+  }
+
+  return match ? match[1] : null
+}
+
+const getErrorDebugMeta = (error: unknown) => {
+  if (!error || typeof error !== 'object') return { rawError: error }
+  const maybeError = error as {
+    message?: unknown
+    details?: unknown
+    hint?: unknown
+    code?: unknown
+  }
+  return {
+    message: typeof maybeError.message === 'string' ? maybeError.message : null,
+    details: typeof maybeError.details === 'string' ? maybeError.details : null,
+    hint: typeof maybeError.hint === 'string' ? maybeError.hint : null,
+    code: typeof maybeError.code === 'string' ? maybeError.code : null,
+    rawError: error,
+  }
+}
+
+const shouldSuppressOptionalColumnUpdateError = (
+  updates: Partial<PersonWithGroup>,
+  error: unknown
+) => {
+  const updateKeys = Object.keys(updates) as (keyof PersonWithGroup)[]
+  if (updateKeys.length !== 1) return false
+  if (!OPTIONAL_DB_COLUMNS.has(updateKeys[0])) return false
+
+  const { message, details, code } = getErrorDebugMeta(error)
+  const combined = `${message || ''} ${details || ''} ${code || ''}`.toLowerCase()
+
+  // Some PostgREST errors come back without rich metadata in dev;
+  // treat optional single-column writes as skippable to avoid noisy failures.
+  if (!combined.trim()) return true
+  return (
+    combined.includes('column') ||
+    combined.includes('schema') ||
+    combined.includes('does not exist') ||
+    combined.includes('pgrst')
+  )
+}
 
 const GROUP_NAME_MAP: Record<string, string> = {
   'New Leads': 'לידים',
@@ -89,6 +162,7 @@ const personMatchesSearch = (person: PersonWithGroup, search: string) => {
     person.email,
     person.source,
     person.whatsapp_response,
+    person.unanswered_calls_count,
     person.employment_status,
     person.lead_idea,
     person.seller,
@@ -116,6 +190,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   score_1_3: 'ציון 1-3',
   source: 'מקור',
   whatsapp_response: 'תגובה להודעת ווטסאפ',
+  unanswered_calls_count: 'כמות שיחות שלא נענו',
   employment_status: 'שכיר / עצמאי',
   lead_idea: 'רעיון (טופס לידים)',
   seller: 'מוכר',
@@ -133,6 +208,7 @@ const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
   score_1_3: true,
   source: true,
   whatsapp_response: true,
+  unanswered_calls_count: true,
   employment_status: true,
   lead_idea: true,
   seller: true,
@@ -147,6 +223,7 @@ const SORT_FIELD_TO_COLUMN: Record<SortField, ColumnKey> = {
   score_1_3: 'score_1_3',
   total_contracts: 'total_contracts',
 }
+const VISIBLE_COLUMNS_STORAGE_KEY = 'board-visible-columns'
 
 const applyColumnAccess = (
   columns: Record<ColumnKey, boolean>,
@@ -179,6 +256,30 @@ const buildMinimalVisibleColumns = (access: Record<ColumnKey, boolean>) => {
 
   return next
 }
+
+const parseStoredVisibleColumns = (rawValue: string | null): Partial<Record<ColumnKey, boolean>> | null => {
+  if (!rawValue) return null
+
+  try {
+    const parsed = JSON.parse(rawValue)
+    if (!parsed || typeof parsed !== 'object') return null
+
+    return BOARD_COLUMNS.reduce((next, column) => {
+      if (typeof parsed[column] === 'boolean') {
+        next[column] = parsed[column]
+      }
+      return next
+    }, {} as Partial<Record<ColumnKey, boolean>>)
+  } catch {
+    return null
+  }
+}
+
+const getVisibleColumnsStorageKey = (userEmail: string | null | undefined) =>
+  `${VISIBLE_COLUMNS_STORAGE_KEY}-${(userEmail || 'anonymous').trim().toLowerCase()}`
+
+const getDefaultVisibleColumns = (access: Record<ColumnKey, boolean>) =>
+  applyColumnAccess(DEFAULT_VISIBLE_COLUMNS, access)
 
 export function BoardClient({ 
   initialGroups, 
@@ -245,11 +346,12 @@ export function BoardClient({
   }, [people])
 
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(() =>
-    applyColumnAccess(DEFAULT_VISIBLE_COLUMNS, columnAccess)
+    getDefaultVisibleColumns(columnAccess)
   )
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false)
   const columnsMenuRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const hasLoadedVisibleColumnsRef = useRef(false)
   const supabase = createClient()
   const sellerOptions = useMemo(() => {
     const uniqueEmails = new Set(
@@ -335,19 +437,58 @@ export function BoardClient({
     // Optimistic update
     setPeople(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p))
 
-    const { error } = await supabase
+    const updatePayload: Record<string, unknown> = { ...updates }
+    const droppedColumns: string[] = []
+    let { error } = await supabase
       .from('people')
-      .update(updates)
+      .update(updatePayload)
       .eq('id', id)
 
+    while (error) {
+      const missingColumn = getMissingColumnFromError(error)
+      if (!missingColumn || !(missingColumn in updatePayload)) break
+
+      droppedColumns.push(missingColumn)
+      delete updatePayload[missingColumn]
+
+      if (Object.keys(updatePayload).length === 0) {
+        break
+      }
+
+      const retryResult = await supabase
+        .from('people')
+        .update(updatePayload)
+        .eq('id', id)
+      error = retryResult.error
+    }
+
+    if (!error && droppedColumns.length > 0) {
+      setPeople((prev) =>
+        prev.map((person) => {
+          if (person.id !== id) return person
+          const nextPerson = { ...person } as PersonWithGroup
+          for (const column of droppedColumns) {
+            const key = column as keyof PersonWithGroup
+            nextPerson[key] = previousPerson[key]
+          }
+          return nextPerson
+        })
+      )
+      console.warn('Skipped person update for missing columns:', { id, droppedColumns })
+      return
+    }
+
     if (error) {
+      if (shouldSuppressOptionalColumnUpdateError(updates, error)) {
+        // Revert the optimistic value for optional columns that are not yet in DB.
+        setPeople((prev) => prev.map((person) => (person.id === id ? previousPerson : person)))
+        console.warn('Skipped optional column update (migration likely missing):', { id, updates })
+        return
+      }
       console.error('Error updating person:', {
         id,
         updates,
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
+        ...getErrorDebugMeta(error),
       })
       // Revert only this person to avoid overwriting unrelated UI changes (like deletions).
       setPeople((prev) => prev.map((person) => (person.id === id ? previousPerson : person)))
@@ -362,17 +503,66 @@ export function BoardClient({
     // Optimistic update
     setPeople(prev => prev.map(p => ids.includes(p.id) ? { ...p, ...updates } : p))
 
-    const { error } = await supabase
+    const updatePayload: Record<string, unknown> = { ...updates }
+    const droppedColumns: string[] = []
+    let { error } = await supabase
       .from('people')
-      .update(updates)
+      .update(updatePayload)
       .in('id', ids)
 
+    while (error) {
+      const missingColumn = getMissingColumnFromError(error)
+      if (!missingColumn || !(missingColumn in updatePayload)) break
+
+      droppedColumns.push(missingColumn)
+      delete updatePayload[missingColumn]
+
+      if (Object.keys(updatePayload).length === 0) {
+        break
+      }
+
+      const retryResult = await supabase
+        .from('people')
+        .update(updatePayload)
+        .in('id', ids)
+      error = retryResult.error
+    }
+
+    if (!error && droppedColumns.length > 0) {
+      const previousPeopleById = new Map(previousPeople.map((person) => [person.id, person]))
+      setPeople((prev) =>
+        prev.map((person) => {
+          if (!ids.includes(person.id)) return person
+          const previousPerson = previousPeopleById.get(person.id)
+          if (!previousPerson) return person
+          const nextPerson = { ...person } as PersonWithGroup
+          for (const column of droppedColumns) {
+            const key = column as keyof PersonWithGroup
+            nextPerson[key] = previousPerson[key]
+          }
+          return nextPerson
+        })
+      )
+      console.warn('Skipped bulk person update for missing columns:', { ids, droppedColumns })
+      return
+    }
+
     if (error) {
+      if (shouldSuppressOptionalColumnUpdateError(updates, error)) {
+        setPeople((prev) =>
+          prev.map((person) =>
+            ids.includes(person.id)
+              ? previousPeople.find((p) => p.id === person.id) || person
+              : person
+          )
+        )
+        console.warn('Skipped optional bulk column update (migration likely missing):', { ids, updates })
+        return
+      }
       console.error('Error updating multiple people:', {
         ids,
         updates,
-        message: error.message,
-        details: error.details,
+        ...getErrorDebugMeta(error),
       })
       // Revert only these people to avoid overwriting unrelated UI changes
       setPeople((prev) => prev.map((person) => (ids.includes(person.id) ? previousPeople.find(p => p.id === person.id) || person : person)))
@@ -504,6 +694,50 @@ export function BoardClient({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isColumnsMenuOpen])
+
+  useEffect(() => {
+    hasLoadedVisibleColumnsRef.current = false
+
+    const fallback = getDefaultVisibleColumns(columnAccess)
+    let nextColumns = fallback
+
+    try {
+      const storageKey = getVisibleColumnsStorageKey(userEmail)
+      const stored = parseStoredVisibleColumns(window.localStorage.getItem(storageKey))
+
+      if (stored) {
+        const merged = BOARD_COLUMNS.reduce(
+          (next, column) => {
+            next[column] = stored[column] ?? DEFAULT_VISIBLE_COLUMNS[column]
+            return next
+          },
+          {} as Record<ColumnKey, boolean>
+        )
+        const accessApplied = applyColumnAccess(merged, columnAccess)
+        const hasVisibleAllowedColumn = BOARD_COLUMNS.some(
+          (column) => columnAccess[column] && accessApplied[column]
+        )
+        nextColumns = hasVisibleAllowedColumn
+          ? accessApplied
+          : buildMinimalVisibleColumns(columnAccess)
+      }
+    } catch {
+      nextColumns = fallback
+    }
+
+    setVisibleColumns(nextColumns)
+    hasLoadedVisibleColumnsRef.current = true
+  }, [columnAccess, userEmail])
+
+  useEffect(() => {
+    if (!hasLoadedVisibleColumnsRef.current) return
+    try {
+      const storageKey = getVisibleColumnsStorageKey(userEmail)
+      window.localStorage.setItem(storageKey, JSON.stringify(visibleColumns))
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [userEmail, visibleColumns])
 
   const toggleColumnVisibility = (column: ColumnKey) => {
     setVisibleColumns((prev) => {
@@ -641,6 +875,16 @@ export function BoardClient({
         onClose={() => setSelectedPerson(null)}
         initialTab={selectedDrawerTab}
         canAccessSalesTab={canAccessSalesTab}
+        onUnansweredCallsUpdated={(personId, nextValue) => {
+          setPeople((prev) =>
+            prev.map((person) =>
+              person.id === personId ? { ...person, unanswered_calls_count: nextValue } : person
+            )
+          )
+          setSelectedPerson((prev) =>
+            prev && prev.id === personId ? { ...prev, unanswered_calls_count: nextValue } : prev
+          )
+        }}
         onPurchaseCreated={(personId, price) => {
           setPurchaseCounts((prev) => ({ ...prev, [personId]: (prev[personId] || 0) + 1 }))
           setPurchaseTotals((prev) => ({ ...prev, [personId]: (prev[personId] || 0) + price }))
@@ -925,6 +1169,7 @@ function GroupSection({
                 )}
                 {visibleColumns.source && <TableHead className="min-w-[120px]">מקור</TableHead>}
                 {visibleColumns.whatsapp_response && <TableHead className="min-w-[150px]">תגובה להודעת ווטסאפ</TableHead>}
+                {visibleColumns.unanswered_calls_count && <TableHead className="min-w-[135px]">כמות שיחות שלא נענו</TableHead>}
                 {visibleColumns.employment_status && <TableHead className="min-w-[120px]">שכיר / עצמאי</TableHead>}
                 {visibleColumns.lead_idea && <TableHead className="min-w-[150px]">רעיון (טופס לידים)</TableHead>}
                 {visibleColumns.seller && <TableHead className="min-w-[86px]">מוכר</TableHead>}
@@ -1230,6 +1475,11 @@ function EditableRow({
                   noteCount > 0 ? 'text-blue-500' : 'text-gray-400'
                 )}
               />
+              {noteCount === 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-200 bg-white">
+                  <Plus className="h-2.5 w-2.5 text-gray-500" />
+                </span>
+              ) : null}
               {noteCount > 0 ? (
                 <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] leading-none text-white">
                   {noteCount}
@@ -1308,13 +1558,50 @@ function EditableRow({
       {/* 8. WhatsApp response */}
       {visibleColumns.whatsapp_response && renderCell('whatsapp_response', person.whatsapp_response)}
 
-      {/* 9. Employment status */}
+      {/* 9. Unanswered calls count */}
+      {visibleColumns.unanswered_calls_count && (
+      <TableCell className="p-2 align-middle">
+        <Select
+          value={person.unanswered_calls_count || NO_UNANSWERED_CALLS_VALUE}
+          onValueChange={(value) =>
+            onUpdate(person.id, {
+              unanswered_calls_count: value === NO_UNANSWERED_CALLS_VALUE ? null : value,
+            })
+          }
+        >
+          <SelectTrigger
+            className={cn(
+              'h-8 border-none shadow-none focus:ring-0 min-w-[125px] gap-1 pr-2'
+            )}
+          >
+            <SelectValue placeholder="בחר כמות שיחות" />
+            <span
+              aria-hidden="true"
+              className={cn(
+                'ml-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full',
+                getUnansweredCallsDotClass(person.unanswered_calls_count)
+              )}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_UNANSWERED_CALLS_VALUE}>ללא</SelectItem>
+            {UNANSWERED_CALLS_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>
+                {option}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      )}
+
+      {/* 10. Employment status */}
       {visibleColumns.employment_status && renderCell('employment_status', person.employment_status)}
 
-      {/* 10. Lead idea */}
+      {/* 11. Lead idea */}
       {visibleColumns.lead_idea && renderCell('lead_idea', person.lead_idea)}
 
-      {/* 11. Seller */}
+      {/* 12. Seller */}
       {visibleColumns.seller && (
       <TableCell className="p-2 align-middle">
         <Select
@@ -1338,20 +1625,20 @@ function EditableRow({
       </TableCell>
       )}
 
-      {/* 12. Campaign */}
+      {/* 13. Campaign */}
       {visibleColumns.campaign && renderCell('campaign', person.campaign)}
 
-      {/* 13. Ad name */}
+      {/* 14. Ad name */}
       {visibleColumns.ad_name && renderCell('ad_name', person.ad_name)}
 
-      {/* 14. Total contracts (computed from purchases, non-editable) */}
+      {/* 15. Total contracts (computed from purchases, non-editable) */}
       {visibleColumns.total_contracts && (
       <TableCell className="p-2 align-middle text-gray-700">
         <span className="block truncate">₪{purchaseTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
       </TableCell>
       )}
 
-      {/* 15. Status */}
+      {/* 16. Status */}
       {visibleColumns.status && renderCell('status', person.status)}
 
     </TableRow>

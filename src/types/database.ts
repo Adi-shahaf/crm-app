@@ -21,6 +21,7 @@ export interface Person {
   group_id: string | null;
   score_1_3: number | null;
   whatsapp_response: string | null;
+  unanswered_calls_count: string | null;
   employment_status: string | null;
   lead_idea: string | null;
   seller: string | null;
