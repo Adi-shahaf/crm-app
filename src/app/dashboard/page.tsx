@@ -129,7 +129,7 @@ export default async function DashboardPage() {
       .select('created_at')
       .order('created_at', { ascending: false })
       .limit(3000)
-    datesBatch = fallback.data
+    datesBatch = fallback.data as { created_at: string; sheet_datetime?: string | null }[] | null
     datesError = fallback.error
   }
 
