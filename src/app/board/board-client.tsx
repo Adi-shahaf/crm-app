@@ -207,6 +207,7 @@ export function BoardClient({
   const [selectedProjectsPerson, setSelectedProjectsPerson] = useState<PersonWithGroup | null>(null)
   const [selectedDrawerTab, setSelectedDrawerTab] = useState<DrawerTab>('notes')
   const [searchTerm, setSearchTerm] = useState('')
+  const [sellerFilter, setSellerFilter] = useState<string>('all')
   const deferredSearchTerm = useDeferredValue(searchTerm)
 
   const duplicatesByPersonId = useMemo(() => {
@@ -470,8 +471,12 @@ export function BoardClient({
     return filterPeopleByGroupAccess(byRole, allowedGroupIds)
   }, [groups, people, userEmail])
   const filteredPeople = useMemo(
-    () => accessiblePeople.filter((person) => personMatchesSearch(person, deferredSearchTerm)),
-    [accessiblePeople, deferredSearchTerm]
+    () => accessiblePeople.filter((person) => {
+      const matchesSearch = personMatchesSearch(person, deferredSearchTerm)
+      const matchesSeller = sellerFilter === 'all' || (sellerFilter === NO_SELLER_VALUE ? !person.seller : person.seller === sellerFilter)
+      return matchesSearch && matchesSeller
+    }),
+    [accessiblePeople, deferredSearchTerm, sellerFilter]
   )
   const visibleColumnCount = useMemo(
     () => BOARD_COLUMNS.filter((column) => visibleColumns[column]).length,
@@ -530,6 +535,23 @@ export function BoardClient({
           placeholder="Search anything... (Ctrl+F)"
           className="max-w-md bg-white"
         />
+        <Select
+          value={sellerFilter}
+          onValueChange={setSellerFilter}
+        >
+          <SelectTrigger className="h-10 w-[150px] bg-white">
+            <SelectValue placeholder="סנן לפי מוכר" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">כל המוכרים</SelectItem>
+            <SelectItem value={NO_SELLER_VALUE}>ללא מוכר</SelectItem>
+            {sellerOptions.map((option) => (
+              <SelectItem key={option.email} value={option.email}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="relative" ref={columnsMenuRef}>
           <Button
             variant="outline"
@@ -572,6 +594,7 @@ export function BoardClient({
                         checked={checked}
                         disabled={!canAccessColumn || isOnlyVisible}
                         onChange={() => toggleColumnVisibility(column)}
+                        className="h-4 w-4 cursor-pointer"
                       />
                       <span>{COLUMN_LABELS[column]}</span>
                     </label>
@@ -869,6 +892,7 @@ function GroupSection({
                       }
                       setSelectedIds([])
                     }}
+                    className="h-4 w-4 cursor-pointer"
                   />
                 </TableHead>
                 {visibleColumns.full_name && (
@@ -1160,6 +1184,7 @@ function EditableRow({
             type="checkbox"
             checked={isSelected}
             onChange={(e) => onToggleSelect(e.target.checked)}
+            className="h-4 w-4 cursor-pointer"
           />
           <Button
             variant="ghost"
