@@ -268,7 +268,8 @@ export function BoardClient({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+      const isFindShortcut = event.key.toLowerCase() === 'f' || event.code === 'KeyF'
+      if ((event.ctrlKey || event.metaKey) && isFindShortcut) {
         event.preventDefault()
         searchInputRef.current?.focus()
       }
