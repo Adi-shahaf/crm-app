@@ -469,27 +469,6 @@ export function PersonDrawer({
               <span>No phone</span>
             )}
           </SheetDescription>
-          <div className="pt-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="inline-flex items-center gap-2"
-              onClick={handleBumpUnansweredCalls}
-              disabled={isUpdatingUnansweredCalls || isMaxUnansweredCallsCount(person.unanswered_calls_count)}
-            >
-              <PhoneOff className="h-4 w-4" />
-              <span>
-                {isUpdatingUnansweredCalls ? 'מעדכן...' : 'לא ענה'}
-              </span>
-            </Button>
-            <span className="ml-2 text-xs text-gray-500">
-              {person.unanswered_calls_count || 'טרם סומן'}
-            </span>
-            {unansweredCallsError ? (
-              <p className="mt-2 text-sm text-red-600">{unansweredCallsError}</p>
-            ) : null}
-          </div>
         </SheetHeader>
 
         <Tabs
@@ -527,13 +506,32 @@ export function PersonDrawer({
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
               />
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="inline-flex items-center gap-2"
+                  onClick={handleBumpUnansweredCalls}
+                  disabled={isUpdatingUnansweredCalls || isMaxUnansweredCallsCount(person.unanswered_calls_count)}
+                >
+                  <PhoneOff className="h-4 w-4" />
+                  {isUpdatingUnansweredCalls ? 'מעדכן...' : 'דיווח - לא ענה'}
+                </Button>
                 <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()}>
                   Update
                 </Button>
               </div>
+              {person.unanswered_calls_count ? (
+                <p className="mt-2 text-xs text-gray-500 text-right">
+                  {person.unanswered_calls_count}
+                </p>
+              ) : null}
               {noteError ? (
                 <p className="text-sm text-red-600 mt-2">{noteError}</p>
+              ) : null}
+              {unansweredCallsError ? (
+                <p className="text-sm text-red-600 mt-2">{unansweredCallsError}</p>
               ) : null}
             </div>
 
