@@ -892,7 +892,7 @@ function GroupSection({
                       }
                       setSelectedIds([])
                     }}
-                    className="h-4 w-4 cursor-pointer"
+                    className="h-4 w-4 cursor-pointer ml-1"
                   />
                 </TableHead>
                 {visibleColumns.full_name && (
@@ -1184,7 +1184,7 @@ function EditableRow({
             type="checkbox"
             checked={isSelected}
             onChange={(e) => onToggleSelect(e.target.checked)}
-            className="h-4 w-4 cursor-pointer"
+            className="h-4 w-4 cursor-pointer ml-1"
           />
           <Button
             variant="ghost"
