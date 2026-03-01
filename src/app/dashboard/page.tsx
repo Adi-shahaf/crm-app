@@ -115,7 +115,7 @@ export default async function DashboardPage() {
   const chartMax = chartItems.reduce((max, item) => Math.max(max, item.total), 0)
 
   // --- Weekly Leads Chart (Past 10 Weeks, Sunday to Saturday in Israel) ---
-  let peopleDates: { created_at: string; sheet_datetime?: string | null }[] = []
+  let peopleDates: { created_at: string; sheet_datetime: string | null }[] = []
   
   let { data: datesBatch, error: datesError } = await supabase
     .from('people')
@@ -129,11 +129,11 @@ export default async function DashboardPage() {
       .select('created_at')
       .order('created_at', { ascending: false })
       .limit(3000)
-    datesBatch = fallback.data as { created_at: string; sheet_datetime?: string | null }[] | null
+    datesBatch = (fallback.data || []).map(d => ({ ...d, sheet_datetime: null }))
     datesError = fallback.error
   }
 
-  peopleDates = datesBatch || []
+  peopleDates = (datesBatch as { created_at: string; sheet_datetime: string | null }[]) || []
 
   function getStartOfWeekIsrael(date: Date) {
     const formatter = new Intl.DateTimeFormat('en-US', {
