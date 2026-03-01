@@ -467,9 +467,10 @@ export function BoardClient({
         prev.map((person) => {
           if (person.id !== id) return person
           const nextPerson = { ...person } as PersonWithGroup
+          const nextPersonByColumn = nextPerson as unknown as Record<string, unknown>
+          const previousPersonByColumn = previousPerson as unknown as Record<string, unknown>
           for (const column of droppedColumns) {
-            const key = column as keyof PersonWithGroup
-            nextPerson[key] = previousPerson[key]
+            nextPersonByColumn[column] = previousPersonByColumn[column]
           }
           return nextPerson
         })
@@ -536,9 +537,10 @@ export function BoardClient({
           const previousPerson = previousPeopleById.get(person.id)
           if (!previousPerson) return person
           const nextPerson = { ...person } as PersonWithGroup
+          const nextPersonByColumn = nextPerson as unknown as Record<string, unknown>
+          const previousPersonByColumn = previousPerson as unknown as Record<string, unknown>
           for (const column of droppedColumns) {
-            const key = column as keyof PersonWithGroup
-            nextPerson[key] = previousPerson[key]
+            nextPersonByColumn[column] = previousPersonByColumn[column]
           }
           return nextPerson
         })
