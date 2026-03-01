@@ -423,7 +423,7 @@ export function PersonDrawer({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-[500px] sm:w-[600px] sm:max-w-none flex flex-col overflow-hidden p-0 h-full right-0 rounded-none border-l shadow-2xl">
+      <SheetContent className="w-screen max-w-none sm:w-[600px] flex flex-col overflow-hidden p-0 h-full right-0 rounded-none border-l shadow-2xl">
         <SheetHeader className="px-6 py-4 border-b bg-gray-50/50 space-y-1">
           <SheetTitle className="text-xl">{person.full_name}</SheetTitle>
           <SheetDescription className="flex items-center gap-2">
@@ -615,7 +615,7 @@ export function PersonDrawer({
                 ) : (
                   <div className="space-y-4">
                     {purchases.map((p) => (
-                      <div key={p.id} className="p-4 border rounded-lg bg-white shadow-sm space-y-1">
+                      <div key={p.id} dir="rtl" className="p-4 border rounded-lg bg-white shadow-sm space-y-1 text-right">
                         {editingPurchaseId === p.id ? (
                           <div className="space-y-3">
                             <Select
@@ -702,7 +702,10 @@ export function PersonDrawer({
                             </div>
                             <div className="text-sm text-gray-500">תאריך מכירה: {p.sale_date ? new Date(p.sale_date).toLocaleDateString() : '-'}</div>
                             <div className="text-sm text-gray-500">אופן תשלום: {p.payment_method || '-'}</div>
-                            <div className="text-sm text-gray-500">הסדר תשלומים: {p.installment_plan || '-'}</div>
+                            <div className="text-sm text-gray-500">
+                              הסדר תשלומים:{' '}
+                              <span className="font-semibold text-gray-700">{p.installment_plan || '-'}</span>
+                            </div>
                             <div className="flex justify-end gap-2 pt-2">
                               <Button
                                 type="button"

@@ -362,7 +362,7 @@ export function ProjectKanbanDialog({
                 <section
                   key={stage}
                   className={cn(
-                    'flex flex-col max-h-full rounded-[3px] bg-[#f4f5f7] transition-colors',
+                    'flex min-h-0 flex-col max-h-full rounded-[3px] bg-[#f4f5f7] transition-colors',
                     isActiveDropZone && 'ring-2 ring-blue-400 bg-[#ebecf0]'
                   )}
                   onDragOver={(event) => event.preventDefault()}
@@ -388,7 +388,7 @@ export function ProjectKanbanDialog({
                     <span className="text-[12px] text-[#5e6c84]">{columnProjects.length}</span>
                   </div>
 
-                  <ScrollArea className="flex-1 px-2 pb-2">
+                  <ScrollArea className="min-h-0 flex-1 px-2 pb-2">
                     <div className="space-y-2 pb-2">
                       {columnProjects.length === 0 ? (
                         <div className="p-3 text-center text-[13px] text-[#5e6c84] border-2 border-dashed border-[#dfe1e6] rounded-[3px] mx-1">
