@@ -1482,41 +1482,38 @@ function EditableRow({
 
       {/* 2. Kanban */}
       {canAccessProjectKanban ? (
-        <TableCell className="p-2 align-middle text-center">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
-            onClick={() => onOpenProjects(person)}
-            title="Projects"
-          >
+        <TableCell
+          className="cursor-pointer select-none p-2 align-middle text-center hover:bg-gray-50"
+          onClick={() => onOpenProjects(person)}
+          title="Projects"
+        >
+          <span className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900">
             <KanbanSquare className="h-4 w-4" />
             <span>{projectCount}</span>
-          </button>
+          </span>
         </TableCell>
       ) : null}
 
       {/* 3. Sales */}
       {canAccessSalesTab ? (
-        <TableCell className="p-2 align-middle text-center">
-          <button
-            type="button"
-            className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
-            onClick={() => onOpenDrawer(person, 'purchases')}
-          >
+        <TableCell
+          className="cursor-pointer select-none p-2 align-middle text-center hover:bg-gray-50"
+          onClick={() => onOpenDrawer(person, 'purchases')}
+        >
+          <span className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900">
             <ShoppingCart className="h-4 w-4" />
             <span>{purchaseCount}</span>
-          </button>
+          </span>
         </TableCell>
       ) : null}
 
       {/* 4. Comments */}
-      <TableCell className="p-2 align-middle text-center">
-        <button
-          type="button"
-          className="inline-flex items-center whitespace-nowrap text-sm font-semibold"
-          onClick={() => onOpenDrawer(person, 'notes')}
-          title={noteCount > 0 ? `${noteCount} comments` : 'No comments'}
-        >
+      <TableCell
+        className="cursor-pointer select-none p-2 align-middle text-center hover:bg-gray-50"
+        onClick={() => onOpenDrawer(person, 'notes')}
+        title={noteCount > 0 ? `${noteCount} comments` : 'No comments'}
+      >
+        <span className="inline-flex cursor-pointer items-center whitespace-nowrap text-sm font-semibold">
           <span className="relative inline-flex h-5 w-5 items-center justify-center">
             <MessageSquare
               className={cn(
@@ -1535,7 +1532,7 @@ function EditableRow({
               </span>
             ) : null}
           </span>
-        </button>
+        </span>
       </TableCell>
       
       {/* 5. Group */}
