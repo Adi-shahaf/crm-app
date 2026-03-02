@@ -27,7 +27,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus, PhoneCall } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus, PhoneCall } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -1016,6 +1016,8 @@ function GroupSection({
     () => Object.values(visibleColumns).filter(Boolean).length,
     [visibleColumns]
   )
+  const actionColumnCount =
+    (canAccessProjectKanban ? 1 : 0) + (canAccessSalesTab ? 1 : 0) + 1
 
   const sortedPeople = useMemo(() => {
     if (!activeSortConfig) return people
@@ -1136,7 +1138,7 @@ function GroupSection({
           <Table>
             <TableHeader className="bg-gray-50">
               <TableRow>
-                <TableHead className="w-[120px]">
+                <TableHead className="w-[48px]">
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -1151,13 +1153,16 @@ function GroupSection({
                   />
                 </TableHead>
                 {visibleColumns.full_name && (
-                <TableHead className="min-w-[120px]">
+                <TableHead className="min-w-[160px]">
                   <div className="flex items-center gap-1">
                     <span>שם</span>
                     {renderSortChevron('full_name')}
                   </div>
                 </TableHead>
                 )}
+                {canAccessProjectKanban && <TableHead className="w-[76px] text-center" />}
+                {canAccessSalesTab && <TableHead className="w-[76px] text-center" />}
+                <TableHead className="w-[76px] text-center" />
                 {visibleColumns.group_id && <TableHead className="min-w-[150px]">קבוצה</TableHead>}
                 {visibleColumns.phone && <TableHead className="min-w-[120px]">מספר טלפון</TableHead>}
                 {visibleColumns.email && <TableHead className="min-w-[150px]">כתובת מייל</TableHead>}
@@ -1188,12 +1193,12 @@ function GroupSection({
                   </div>
                 </TableHead>
                 )}
-                {visibleColumns.source && <TableHead className="min-w-[120px]">מקור</TableHead>}
                 {visibleColumns.whatsapp_response && <TableHead className="min-w-[150px]">תגובה להודעת ווטסאפ</TableHead>}
                 {visibleColumns.unanswered_calls_count && <TableHead className="min-w-[135px]">כמות שיחות שלא נענו</TableHead>}
                 {visibleColumns.employment_status && <TableHead className="min-w-[120px]">שכיר / עצמאי</TableHead>}
                 {visibleColumns.lead_idea && <TableHead className="min-w-[150px]">רעיון (טופס לידים)</TableHead>}
                 {visibleColumns.seller && <TableHead className="min-w-[86px]">מוכר</TableHead>}
+                {visibleColumns.source && <TableHead className="min-w-[120px]">מקור</TableHead>}
                 {visibleColumns.campaign && <TableHead className="min-w-[120px]">קמפיין</TableHead>}
                 {visibleColumns.ad_name && <TableHead className="min-w-[120px]">שם המודעה</TableHead>}
                 {visibleColumns.total_contracts && (
@@ -1265,7 +1270,7 @@ function GroupSection({
                     return () => observer.disconnect()
                   }}
                 >
-                  <TableCell colSpan={visibleColumnCount + 1} className="h-14 text-center text-sm text-gray-500">
+                  <TableCell colSpan={visibleColumnCount + actionColumnCount + 1} className="h-14 text-center text-sm text-gray-500">
                     טוען עוד...
                   </TableCell>
                 </TableRow>
@@ -1274,7 +1279,7 @@ function GroupSection({
               {/* Add New Row */}
               <TableRow className="hover:bg-gray-50/50">
                 <TableCell></TableCell>
-                <TableCell colSpan={visibleColumnCount}>
+                <TableCell colSpan={visibleColumnCount + actionColumnCount}>
                   {isCreating ? (
                     <form onSubmit={handleCreateSubmit} className="flex items-center gap-2">
                       <Input
@@ -1415,7 +1420,8 @@ function EditableRow({
       <TableCell 
         className={cn(
           'p-2 align-middle cursor-text',
-          isFullNameField && 'w-[140px] max-w-[140px]',
+          isFullNameField && 'pl-5',
+          isFullNameField && 'w-[180px] max-w-[180px]',
           isWhatsappResponseField && 'w-[180px] max-w-[180px]',
           isLeadIdeaField && 'w-[200px] max-w-[200px]'
         )}
@@ -1437,6 +1443,7 @@ function EditableRow({
         ) : (
           <span className={cn(
             'text-gray-700 flex items-center gap-1.5 truncate', 
+            isFullNameField && 'font-medium',
             isWhatsappResponseField && 'max-w-[180px]',
             isLeadIdeaField && 'max-w-[200px]'
           )}>
@@ -1462,75 +1469,76 @@ function EditableRow({
   return (
     <TableRow className="group/row hover:bg-gray-50/80">
       <TableCell className="p-2 align-middle">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => onToggleSelect(e.target.checked)}
-            className="h-4 w-4 cursor-pointer ml-1"
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 opacity-0 group-hover/row:opacity-100 flex items-center gap-1 text-gray-500 hover:text-gray-900"
-            onClick={() => onOpenDrawer(person)}
-          >
-            <Maximize2 className="h-3.5 w-3.5" />
-            <span className="text-xs">פתח</span>
-          </Button>
-          {canAccessProjectKanban ? (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
-              onClick={() => onOpenProjects(person)}
-              title="Projects"
-            >
-              <KanbanSquare className="h-4 w-4" />
-              <span>{projectCount}</span>
-            </button>
-          ) : null}
-          {canAccessSalesTab ? (
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
-              onClick={() => onOpenDrawer(person, 'purchases')}
-            >
-              <ShoppingCart className="h-4 w-4" />
-              <span>{purchaseCount}</span>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="inline-flex items-center whitespace-nowrap text-sm font-semibold"
-            onClick={() => onOpenDrawer(person, 'notes')}
-            title={noteCount > 0 ? `${noteCount} comments` : 'No comments'}
-          >
-            <span className="relative inline-flex h-5 w-5 items-center justify-center">
-              <MessageSquare
-                className={cn(
-                  'h-4 w-4 transition-colors',
-                  noteCount > 0 ? 'text-blue-500' : 'text-gray-400'
-                )}
-              />
-              {noteCount === 0 ? (
-                <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-200 bg-white">
-                  <Plus className="h-2.5 w-2.5 text-gray-500" />
-                </span>
-              ) : null}
-              {noteCount > 0 ? (
-                <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] leading-none text-white">
-                  {noteCount}
-                </span>
-              ) : null}
-            </span>
-          </button>
-        </div>
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={(e) => onToggleSelect(e.target.checked)}
+          className="h-4 w-4 cursor-pointer ml-1"
+        />
       </TableCell>
       
       {/* 1. Name */}
       {visibleColumns.full_name && renderCell('full_name', person.full_name)}
+
+      {/* 2. Kanban */}
+      {canAccessProjectKanban ? (
+        <TableCell className="p-2 align-middle text-center">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
+            onClick={() => onOpenProjects(person)}
+            title="Projects"
+          >
+            <KanbanSquare className="h-4 w-4" />
+            <span>{projectCount}</span>
+          </button>
+        </TableCell>
+      ) : null}
+
+      {/* 3. Sales */}
+      {canAccessSalesTab ? (
+        <TableCell className="p-2 align-middle text-center">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900"
+            onClick={() => onOpenDrawer(person, 'purchases')}
+          >
+            <ShoppingCart className="h-4 w-4" />
+            <span>{purchaseCount}</span>
+          </button>
+        </TableCell>
+      ) : null}
+
+      {/* 4. Comments */}
+      <TableCell className="p-2 align-middle text-center">
+        <button
+          type="button"
+          className="inline-flex items-center whitespace-nowrap text-sm font-semibold"
+          onClick={() => onOpenDrawer(person, 'notes')}
+          title={noteCount > 0 ? `${noteCount} comments` : 'No comments'}
+        >
+          <span className="relative inline-flex h-5 w-5 items-center justify-center">
+            <MessageSquare
+              className={cn(
+                'h-4 w-4 transition-colors',
+                noteCount > 0 ? 'text-blue-500' : 'text-gray-400'
+              )}
+            />
+            {noteCount === 0 ? (
+              <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-200 bg-white">
+                <Plus className="h-2.5 w-2.5 text-gray-500" />
+              </span>
+            ) : null}
+            {noteCount > 0 ? (
+              <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] leading-none text-white">
+                {noteCount}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      </TableCell>
       
-      {/* 2. Group */}
+      {/* 5. Group */}
       {visibleColumns.group_id && (
       <TableCell className="p-2 align-middle">
         <Select 
@@ -1558,13 +1566,13 @@ function EditableRow({
       </TableCell>
       )}
       
-      {/* 3. Phone */}
+      {/* 6. Phone */}
       {visibleColumns.phone && renderCell('phone', person.phone)}
       
-      {/* 4. Email */}
+      {/* 7. Email */}
       {visibleColumns.email && renderCell('email', person.email)}
       
-      {/* 5. Date */}
+      {/* 8. Date */}
       {visibleColumns.sheet_datetime && (
       <TableCell
         className="text-gray-500 p-2 align-middle text-sm cursor-pointer"
@@ -1672,16 +1680,13 @@ function EditableRow({
       </TableCell>
       )}
 
-      {/* 6. Score */}
+      {/* 9. Score */}
       {visibleColumns.score_1_3 && renderCell('score_1_3', person.score_1_3, true)}
 
-      {/* 7. Source */}
-      {visibleColumns.source && renderCell('source', person.source)}
-
-      {/* 8. WhatsApp response */}
+      {/* 10. WhatsApp response */}
       {visibleColumns.whatsapp_response && renderCell('whatsapp_response', person.whatsapp_response)}
 
-      {/* 9. Unanswered calls count */}
+      {/* 11. Unanswered calls count */}
       {visibleColumns.unanswered_calls_count && (
       <TableCell className="p-2 align-middle">
         <Select
@@ -1718,13 +1723,13 @@ function EditableRow({
       </TableCell>
       )}
 
-      {/* 10. Employment status */}
+      {/* 12. Employment status */}
       {visibleColumns.employment_status && renderCell('employment_status', person.employment_status)}
 
-      {/* 11. Lead idea */}
+      {/* 13. Lead idea */}
       {visibleColumns.lead_idea && renderCell('lead_idea', person.lead_idea)}
 
-      {/* 12. Seller */}
+      {/* 14. Seller */}
       {visibleColumns.seller && (
       <TableCell className="p-2 align-middle">
         <Select
@@ -1748,13 +1753,16 @@ function EditableRow({
       </TableCell>
       )}
 
-      {/* 13. Campaign */}
+      {/* 15. Source */}
+      {visibleColumns.source && renderCell('source', person.source)}
+
+      {/* 16. Campaign */}
       {visibleColumns.campaign && renderCell('campaign', person.campaign)}
 
-      {/* 14. Ad name */}
+      {/* 17. Ad name */}
       {visibleColumns.ad_name && renderCell('ad_name', person.ad_name)}
 
-      {/* 15. Total contracts (computed from purchases, non-editable) */}
+      {/* 18. Total contracts (computed from purchases, non-editable) */}
       {visibleColumns.total_contracts && (
       <TableCell className="p-2 align-middle text-gray-700">
         <span className="block truncate">₪{purchaseTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
