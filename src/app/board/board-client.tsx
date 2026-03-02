@@ -1193,11 +1193,11 @@ function GroupSection({
                   </div>
                 </TableHead>
                 )}
+                {visibleColumns.seller && <TableHead className="min-w-[86px]">מוכר</TableHead>}
                 {visibleColumns.whatsapp_response && <TableHead className="min-w-[150px]">תגובה להודעת ווטסאפ</TableHead>}
                 {visibleColumns.unanswered_calls_count && <TableHead className="min-w-[135px]">כמות שיחות שלא נענו</TableHead>}
                 {visibleColumns.employment_status && <TableHead className="min-w-[120px]">שכיר / עצמאי</TableHead>}
                 {visibleColumns.lead_idea && <TableHead className="min-w-[150px]">רעיון (טופס לידים)</TableHead>}
-                {visibleColumns.seller && <TableHead className="min-w-[86px]">מוכר</TableHead>}
                 {visibleColumns.source && <TableHead className="min-w-[120px]">מקור</TableHead>}
                 {visibleColumns.campaign && <TableHead className="min-w-[120px]">קמפיין</TableHead>}
                 {visibleColumns.ad_name && <TableHead className="min-w-[120px]">שם המודעה</TableHead>}
@@ -1680,10 +1680,36 @@ function EditableRow({
       {/* 9. Score */}
       {visibleColumns.score_1_3 && renderCell('score_1_3', person.score_1_3, true)}
 
-      {/* 10. WhatsApp response */}
+      {/* 10. Seller */}
+      {visibleColumns.seller && (
+      <TableCell className="p-2 align-middle">
+        <Select
+          value={person.seller && sellerOptions.some((option) => option.email === person.seller) ? person.seller : NO_SELLER_VALUE}
+          onValueChange={(value) =>
+            onUpdate(person.id, {
+              seller: value === NO_SELLER_VALUE ? null : value,
+            })
+          }
+        >
+          <SelectTrigger className="h-8 border-none shadow-none focus:ring-0 hover:bg-gray-100 w-[110px] min-w-[110px] gap-1 pr-2">
+            <SelectValue placeholder="בחר מוכר" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_SELLER_VALUE}>ללא</SelectItem>
+            {sellerOptions.map((option) => (
+              <SelectItem key={option.email} value={option.email}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      )}
+
+      {/* 11. WhatsApp response */}
       {visibleColumns.whatsapp_response && renderCell('whatsapp_response', person.whatsapp_response)}
 
-      {/* 11. Unanswered calls count */}
+      {/* 12. Unanswered calls count */}
       {visibleColumns.unanswered_calls_count && (
       <TableCell className="p-2 align-middle">
         <Select
@@ -1720,35 +1746,11 @@ function EditableRow({
       </TableCell>
       )}
 
-      {/* 12. Employment status */}
+      {/* 13. Employment status */}
       {visibleColumns.employment_status && renderCell('employment_status', person.employment_status)}
 
-      {/* 13. Lead idea */}
+      {/* 14. Lead idea */}
       {visibleColumns.lead_idea && renderCell('lead_idea', person.lead_idea)}
-
-      {/* 14. Seller */}
-      {visibleColumns.seller && (
-      <TableCell className="p-2 align-middle">
-        <Select
-          value={person.seller && sellerOptions.some((option) => option.email === person.seller) ? person.seller : NO_SELLER_VALUE}
-          onValueChange={(value) =>
-            onUpdate(person.id, { seller: value === NO_SELLER_VALUE ? null : value })
-          }
-        >
-          <SelectTrigger className="h-8 border-none shadow-none focus:ring-0 hover:bg-gray-100 w-[110px] min-w-[110px] gap-1 pr-2">
-            <SelectValue placeholder="בחר מוכר" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NO_SELLER_VALUE}>ללא</SelectItem>
-            {sellerOptions.map((option) => (
-              <SelectItem key={option.email} value={option.email}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </TableCell>
-      )}
 
       {/* 15. Source */}
       {visibleColumns.source && renderCell('source', person.source)}
