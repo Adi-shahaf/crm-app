@@ -518,7 +518,12 @@ export function PersonDrawer({
                   <PhoneOff className="h-4 w-4" />
                   {isUpdatingUnansweredCalls ? 'מעדכן...' : 'דיווח - לא ענה'}
                 </Button>
-                <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()}>
+                <Button
+                  size="sm"
+                  className="bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300 disabled:text-white"
+                  onClick={handleAddNote}
+                  disabled={!newNote.trim()}
+                >
                   Update
                 </Button>
               </div>
