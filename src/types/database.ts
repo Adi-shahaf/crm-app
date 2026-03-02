@@ -32,6 +32,7 @@ export interface Person {
   lead_status: string | null;
   external_source_id: string | null;
   sheet_datetime: string | null;
+  follow_up_at: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -27,7 +27,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, Maximize2, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus, PhoneCall } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -48,7 +48,7 @@ import { ProjectKanbanDialog } from './project-kanban-dialog'
 import { cn } from '@/lib/utils'
 import { UNANSWERED_CALLS_OPTIONS } from '@/lib/unanswered-calls'
 
-type SortField = 'full_name' | 'sheet_datetime' | 'score_1_3' | 'total_contracts'
+type SortField = 'full_name' | 'sheet_datetime' | 'follow_up_at' | 'score_1_3' | 'total_contracts'
 type SortDirection = 'asc' | 'desc'
 type SortConfig = { field: SortField; direction: SortDirection } | null
 type DrawerTab = 'notes' | 'purchases'
@@ -63,7 +63,10 @@ const UNANSWERED_CALLS_DOT_CLASS: Record<string, string> = {
   [UNANSWERED_CALLS_OPTIONS[3]]: 'bg-gray-600',
   [UNANSWERED_CALLS_OPTIONS[4]]: 'bg-gray-700',
 }
-const OPTIONAL_DB_COLUMNS = new Set<keyof PersonWithGroup>(['unanswered_calls_count'])
+const OPTIONAL_DB_COLUMNS = new Set<keyof PersonWithGroup>([
+  'unanswered_calls_count',
+  'follow_up_at',
+])
 const getUnansweredCallsDotClass = (value: string | null | undefined) =>
   value ? UNANSWERED_CALLS_DOT_CLASS[value] || 'bg-gray-300' : 'bg-gray-200'
 const getErrorMessage = (error: unknown) => {
@@ -172,6 +175,7 @@ const personMatchesSearch = (person: PersonWithGroup, search: string) => {
     person.score_1_3,
     person.total_contracts,
     person.sheet_datetime,
+    person.follow_up_at,
     person.created_at,
     person.groups?.name,
     person.groups?.name ? getDisplayGroupName(person.groups.name) : null,
@@ -187,6 +191,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   phone: 'מספר טלפון',
   email: 'כתובת מייל',
   sheet_datetime: 'תאריך ושעה',
+  follow_up_at: 'שיחת המשך',
   score_1_3: 'ציון 1-3',
   source: 'מקור',
   whatsapp_response: 'תגובה להודעת ווטסאפ',
@@ -204,6 +209,7 @@ const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
   phone: true,
   email: true,
   sheet_datetime: true,
+  follow_up_at: true,
   score_1_3: true,
   source: true,
   whatsapp_response: true,
@@ -218,6 +224,7 @@ const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
 const SORT_FIELD_TO_COLUMN: Record<SortField, ColumnKey> = {
   full_name: 'full_name',
   sheet_datetime: 'sheet_datetime',
+  follow_up_at: 'follow_up_at',
   score_1_3: 'score_1_3',
   total_contracts: 'total_contracts',
 }
@@ -1015,6 +1022,9 @@ function GroupSection({
 
     const getValue = (person: PersonWithGroup): string | number | null => {
       if (activeSortConfig.field === 'sheet_datetime') return Date.parse(getPersonDateTime(person))
+      if (activeSortConfig.field === 'follow_up_at') {
+        return person.follow_up_at ? Date.parse(person.follow_up_at) : null
+      }
       if (activeSortConfig.field === 'score_1_3') return person.score_1_3
       if (activeSortConfig.field === 'total_contracts') return purchaseTotals[person.id] || 0
       return person.full_name
@@ -1141,7 +1151,7 @@ function GroupSection({
                   />
                 </TableHead>
                 {visibleColumns.full_name && (
-                <TableHead className="min-w-[150px]">
+                <TableHead className="min-w-[120px]">
                   <div className="flex items-center gap-1">
                     <span>שם</span>
                     {renderSortChevron('full_name')}
@@ -1158,6 +1168,17 @@ function GroupSection({
                     {renderSortChevron('sheet_datetime')}
                   </div>
                 </TableHead>
+                )}
+                {visibleColumns.follow_up_at && (
+                  <TableHead className="min-w-[150px]">
+                    <div className="flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1">
+                        <span>שיחת המשך</span>
+                        <PhoneCall className="h-3.5 w-3.5 text-gray-500" />
+                      </span>
+                      {renderSortChevron('follow_up_at')}
+                    </div>
+                  </TableHead>
                 )}
                 {visibleColumns.score_1_3 && (
                 <TableHead className="min-w-[80px]">
@@ -1346,9 +1367,25 @@ function EditableRow({
     return new Date(date.getTime() - tzOffsetMs).toISOString().slice(0, 16)
   }
 
-  const startDateTimeEdit = (value: string) => {
-    setEditingField('sheet_datetime')
+  const startDateTimeEdit = (field: 'sheet_datetime' | 'follow_up_at', value: string) => {
+    setEditingField(field)
     setEditValue(toLocalDateTimeInputValue(value))
+  }
+
+  const getQuickDateTimeInputValue = (daysToAdd: number) => {
+    const date = new Date()
+    date.setDate(date.getDate() + daysToAdd)
+    const tzOffsetMs = date.getTimezoneOffset() * 60 * 1000
+    return new Date(date.getTime() - tzOffsetMs).toISOString().slice(0, 16)
+  }
+
+  const getNextSundayDateTimeInputValue = () => {
+    const date = new Date()
+    const currentDay = date.getDay()
+    const daysUntilNextSunday = currentDay === 0 ? 7 : 7 - currentDay
+    date.setDate(date.getDate() + daysUntilNextSunday)
+    const tzOffsetMs = date.getTimezoneOffset() * 60 * 1000
+    return new Date(date.getTime() - tzOffsetMs).toISOString().slice(0, 16)
   }
 
   const commitEdit = () => {
@@ -1357,8 +1394,8 @@ function EditableRow({
       if (editingField === 'score_1_3' || editingField === 'total_contracts') {
         finalValue = editValue ? parseInt(editValue, 10) : null
       }
-      if (editingField === 'sheet_datetime') {
-        finalValue = editValue ? new Date(editValue).toISOString() : person.sheet_datetime
+      if (editingField === 'sheet_datetime' || editingField === 'follow_up_at') {
+        finalValue = editValue ? new Date(editValue).toISOString() : person[editingField]
       }
       
       if (person[editingField] !== finalValue) {
@@ -1378,6 +1415,7 @@ function EditableRow({
       <TableCell 
         className={cn(
           'p-2 align-middle cursor-text',
+          isFullNameField && 'w-[140px] max-w-[140px]',
           isWhatsappResponseField && 'w-[180px] max-w-[180px]',
           isLeadIdeaField && 'w-[200px] max-w-[200px]'
         )}
@@ -1393,7 +1431,7 @@ function EditableRow({
             onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
             className={cn(
               'h-8 text-sm w-full min-w-[100px]',
-              (isWhatsappResponseField || isLeadIdeaField) && 'min-w-0'
+              (isFullNameField || isWhatsappResponseField || isLeadIdeaField) && 'min-w-0'
             )}
           />
         ) : (
@@ -1530,12 +1568,16 @@ function EditableRow({
       {visibleColumns.sheet_datetime && (
       <TableCell
         className="text-gray-500 p-2 align-middle text-sm cursor-pointer"
-        onClick={() => editingField !== 'sheet_datetime' && startDateTimeEdit(getPersonDateTime(person))}
+        onClick={() =>
+          editingField !== 'sheet_datetime' &&
+          startDateTimeEdit('sheet_datetime', getPersonDateTime(person))
+        }
       >
         {editingField === 'sheet_datetime' ? (
           <Input
             autoFocus
             type="datetime-local"
+            lang="he-IL"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onBlur={commitEdit}
@@ -1544,6 +1586,88 @@ function EditableRow({
           />
         ) : (
           <span className="block truncate">{new Date(getPersonDateTime(person)).toLocaleString('he-IL')}</span>
+        )}
+      </TableCell>
+      )}
+
+      {visibleColumns.follow_up_at && (
+      <TableCell
+        className="text-gray-500 p-2 align-middle text-sm cursor-pointer"
+        onClick={() =>
+          editingField !== 'follow_up_at' &&
+          startDateTimeEdit('follow_up_at', person.follow_up_at || new Date().toISOString())
+        }
+      >
+        {editingField === 'follow_up_at' ? (
+          <div className="flex min-w-[130px] flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded-lg border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  const nextInputValue = getQuickDateTimeInputValue(1)
+                  const nextIsoValue = new Date(nextInputValue).toISOString()
+                  onUpdate(person.id, { follow_up_at: nextIsoValue })
+                  setEditingField(null)
+                }}
+              >
+                מחר
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-gray-200 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  const nextInputValue = getNextSundayDateTimeInputValue()
+                  const nextIsoValue = new Date(nextInputValue).toISOString()
+                  onUpdate(person.id, { follow_up_at: nextIsoValue })
+                  setEditingField(null)
+                }}
+              >
+                שבוע הבא
+              </button>
+            </div>
+            <Input
+              autoFocus
+              type="datetime-local"
+              lang="he-IL"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
+              className="h-7 w-[132px] min-w-0 max-w-[132px] rounded-lg text-xs"
+              style={{ width: '132px', minWidth: 0, maxWidth: '132px' }}
+            />
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <span className="block truncate">
+              {person.follow_up_at
+                ? new Date(person.follow_up_at).toLocaleString('he-IL', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : '-'}
+            </span>
+            {person.follow_up_at ? (
+              <button
+                type="button"
+                className="inline-flex h-4 w-4 items-center justify-center rounded text-gray-400 opacity-0 transition hover:bg-gray-100 hover:text-gray-700 group-hover/row:opacity-100"
+                aria-label="נקה שיחת המשך"
+                title="נקה שיחת המשך"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onUpdate(person.id, { follow_up_at: null })
+                }}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            ) : null}
+          </div>
         )}
       </TableCell>
       )}
