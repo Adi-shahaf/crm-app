@@ -14,7 +14,6 @@ export const BOARD_COLUMNS = [
   'campaign',
   'ad_name',
   'total_contracts',
-  'status',
 ] as const
 
 export type BoardColumnKey = (typeof BOARD_COLUMNS)[number]

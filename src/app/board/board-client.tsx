@@ -197,7 +197,6 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   campaign: 'קמפיין',
   ad_name: 'שם המודעה',
   total_contracts: 'סה"כ חוזים',
-  status: 'סטטוס',
 }
 const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
   full_name: true,
@@ -215,7 +214,6 @@ const DEFAULT_VISIBLE_COLUMNS: Record<ColumnKey, boolean> = {
   campaign: true,
   ad_name: true,
   total_contracts: true,
-  status: true,
 }
 const SORT_FIELD_TO_COLUMN: Record<SortField, ColumnKey> = {
   full_name: 'full_name',
@@ -1185,7 +1183,6 @@ function GroupSection({
                   </div>
                 </TableHead>
                 )}
-                {visibleColumns.status && <TableHead className="min-w-[120px]">סטטוס</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1639,9 +1636,6 @@ function EditableRow({
         <span className="block truncate">₪{purchaseTotal.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>
       </TableCell>
       )}
-
-      {/* 16. Status */}
-      {visibleColumns.status && renderCell('status', person.status)}
 
     </TableRow>
   )
