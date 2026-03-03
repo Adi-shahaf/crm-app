@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { Menu, RotateCw } from 'lucide-react'
+import { Menu, RotateCw, KanbanSquare, LayoutDashboard, Table as TableIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
 import { Button } from '@/components/ui/button'
-import { getUserRoleByEmail } from '@/lib/user-permissions'
+import { getUserRoleByEmail, canAccessProjectKanbanByEmail } from '@/lib/user-permissions'
 import {
   Sheet,
   SheetContent,
@@ -18,7 +18,7 @@ import {
 type HeaderMenuProps = {
   userEmail: string | null | undefined
   canAccessDashboard: boolean
-  currentPath: '/board' | '/dashboard'
+  currentPath: '/board' | '/dashboard' | '/kanban'
 }
 
 export function HeaderMenu({ userEmail, canAccessDashboard, currentPath }: HeaderMenuProps) {
@@ -59,18 +59,30 @@ export function HeaderMenu({ userEmail, canAccessDashboard, currentPath }: Heade
               {currentPath !== '/board' ? (
                 <Link
                   href="/board"
-                  className="rounded-md border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
                 >
-                  Board
+                  <TableIcon className="h-4 w-4" />
+                  Main Board
                 </Link>
               ) : null}
 
               {canAccessDashboard && currentPath !== '/dashboard' ? (
                 <Link
                   href="/dashboard"
-                  className="rounded-md border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
                 >
-                  Dashboard
+                  <LayoutDashboard className="h-4 w-4" />
+                  Analytics Dashboard
+                </Link>
+              ) : null}
+
+              {canAccessProjectKanbanByEmail(userEmail) && currentPath !== '/kanban' ? (
+                <Link
+                  href="/kanban"
+                  className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  <KanbanSquare className="h-4 w-4" />
+                  Kanban
                 </Link>
               ) : null}
             </nav>
