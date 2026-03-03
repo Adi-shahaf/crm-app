@@ -153,6 +153,29 @@ const getGroupDotColorClass = (groupName: string) =>
   GROUP_DOT_COLOR_CLASS[getDisplayGroupName(groupName)] || 'bg-blue-500'
 
 const getPersonDateTime = (person: PersonWithGroup) => person.sheet_datetime || person.created_at
+
+const getStickyLeft = (
+  column: 'checkbox' | 'name' | 'kanban' | 'sales' | 'comments',
+  visibleColumns: Record<string, boolean>,
+  canAccessProjectKanban: boolean,
+  canAccessSalesTab: boolean
+) => {
+  let left = 0;
+  if (column === 'checkbox') return left;
+  left += 48;
+  
+  if (column === 'name') return left;
+  if (visibleColumns.full_name) left += 180;
+  
+  if (column === 'kanban') return left;
+  if (canAccessProjectKanban) left += 76;
+  
+  if (column === 'sales') return left;
+  if (canAccessSalesTab) left += 76;
+  
+  if (column === 'comments') return left;
+  return left;
+}
 const getEmailPrefix = (email: string) => email.split('@')[0] || email
 const DELETE_BATCH_SIZE = 100
 const personMatchesSearch = (person: PersonWithGroup, search: string) => {
@@ -1106,7 +1129,7 @@ function GroupSection({
             {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </Button>
         </CollapsibleTrigger>
-        <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900 cursor-default select-none">
           <span
             className={`h-2.5 w-2.5 rounded-full ${getGroupDotColorClass(group.name)}`}
             aria-hidden="true"
@@ -1138,7 +1161,10 @@ function GroupSection({
           <Table>
             <TableHeader className="bg-gray-50">
               <TableRow>
-                <TableHead className="w-[48px]">
+                <TableHead 
+                  className="w-[48px] min-w-[48px] max-w-[48px] sticky z-20 bg-gray-50"
+                  style={{ left: getStickyLeft('checkbox', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
+                >
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -1153,17 +1179,33 @@ function GroupSection({
                   />
                 </TableHead>
                 {visibleColumns.full_name && (
-                <TableHead className="min-w-[160px]">
+                <TableHead 
+                  className="w-[180px] min-w-[180px] max-w-[180px] sticky z-20 bg-gray-50"
+                  style={{ left: getStickyLeft('name', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
+                >
                   <div className="flex items-center gap-1">
                     <span>שם</span>
                     {renderSortChevron('full_name')}
                   </div>
                 </TableHead>
                 )}
-                {canAccessProjectKanban && <TableHead className="w-[76px] text-center" />}
-                {canAccessSalesTab && <TableHead className="w-[76px] text-center" />}
-                <TableHead className="w-[76px] text-center" />
-                {visibleColumns.group_id && <TableHead className="min-w-[150px]">קבוצה</TableHead>}
+                {canAccessProjectKanban && (
+                  <TableHead 
+                    className="w-[76px] min-w-[76px] max-w-[76px] text-center sticky z-20 bg-gray-50"
+                    style={{ left: getStickyLeft('kanban', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
+                  />
+                )}
+                {canAccessSalesTab && (
+                  <TableHead 
+                    className="w-[76px] min-w-[76px] max-w-[76px] text-center sticky z-20 bg-gray-50"
+                    style={{ left: getStickyLeft('sales', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
+                  />
+                )}
+                <TableHead 
+                  className="w-[76px] min-w-[76px] max-w-[76px] text-center sticky z-20 bg-gray-50 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]"
+                  style={{ left: getStickyLeft('comments', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
+                />
+                {visibleColumns.group_id && <TableHead className="min-w-[150px]"><span className="relative left-2">קבוצה</span></TableHead>}
                 {visibleColumns.phone && <TableHead className="min-w-[120px]">מספר טלפון</TableHead>}
                 {visibleColumns.email && <TableHead className="min-w-[150px]">כתובת מייל</TableHead>}
                 {visibleColumns.sheet_datetime && (
@@ -1278,8 +1320,15 @@ function GroupSection({
               
               {/* Add New Row */}
               <TableRow className="hover:bg-gray-50/50">
-                <TableCell></TableCell>
-                <TableCell colSpan={visibleColumnCount + actionColumnCount}>
+                <TableCell 
+                  className="sticky z-10 bg-white"
+                  style={{ left: getStickyLeft('checkbox', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
+                />
+                <TableCell 
+                  colSpan={visibleColumnCount + actionColumnCount}
+                  className="sticky z-10 bg-white"
+                  style={{ left: getStickyLeft('name', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
+                >
                   {isCreating ? (
                     <form onSubmit={handleCreateSubmit} className="flex items-center gap-2">
                       <Input
@@ -1421,10 +1470,11 @@ function EditableRow({
         className={cn(
           'p-2 align-middle cursor-text',
           isFullNameField && 'pl-5',
-          isFullNameField && 'w-[180px] max-w-[180px]',
+          isFullNameField && 'w-[180px] min-w-[180px] max-w-[180px] sticky z-10 bg-white group-hover/row:bg-gray-50',
           isWhatsappResponseField && 'w-[180px] max-w-[180px]',
           isLeadIdeaField && 'w-[200px] max-w-[200px]'
         )}
+        style={isFullNameField ? { left: getStickyLeft('name', visibleColumns, canAccessProjectKanban, canAccessSalesTab) } : undefined}
         onClick={() => editingField !== field && startEdit(field, value)}
       >
         {editingField === field ? (
@@ -1468,7 +1518,10 @@ function EditableRow({
 
   return (
     <TableRow className="group/row hover:bg-gray-50/80">
-      <TableCell className="p-2 align-middle">
+      <TableCell 
+        className="p-2 align-middle sticky z-10 bg-white group-hover/row:bg-gray-50"
+        style={{ left: getStickyLeft('checkbox', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
+      >
         <input
           type="checkbox"
           checked={isSelected}
@@ -1483,56 +1536,65 @@ function EditableRow({
       {/* 2. Kanban */}
       {canAccessProjectKanban ? (
         <TableCell
-          className="cursor-pointer select-none p-2 align-middle text-center hover:bg-gray-50"
+          className="cursor-pointer select-none p-0 align-middle text-center sticky z-10 bg-white hover:bg-gray-50 group-hover/row:bg-gray-50"
+          style={{ left: getStickyLeft('kanban', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
           onClick={() => onOpenProjects(person)}
           title="Projects"
         >
-          <span className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900">
-            <KanbanSquare className="h-4 w-4" />
-            <span>{projectCount}</span>
-          </span>
+          <div className="flex h-full w-full items-center justify-center p-2">
+            <span className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900">
+              <KanbanSquare className="h-4 w-4" />
+              <span>{projectCount}</span>
+            </span>
+          </div>
         </TableCell>
       ) : null}
 
       {/* 3. Sales */}
       {canAccessSalesTab ? (
         <TableCell
-          className="cursor-pointer select-none p-2 align-middle text-center hover:bg-gray-50"
+          className="cursor-pointer select-none p-0 align-middle text-center sticky z-10 bg-white hover:bg-gray-50 group-hover/row:bg-gray-50"
+          style={{ left: getStickyLeft('sales', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
           onClick={() => onOpenDrawer(person, 'purchases')}
         >
-          <span className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900">
-            <ShoppingCart className="h-4 w-4" />
-            <span>{purchaseCount}</span>
-          </span>
+          <div className="flex h-full w-full items-center justify-center p-2">
+            <span className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-sm font-semibold text-gray-700 hover:text-gray-900">
+              <ShoppingCart className="h-4 w-4" />
+              <span>{purchaseCount}</span>
+            </span>
+          </div>
         </TableCell>
       ) : null}
 
       {/* 4. Comments */}
       <TableCell
-        className="cursor-pointer select-none p-2 align-middle text-center hover:bg-gray-50"
+        className="cursor-pointer select-none p-0 align-middle text-center sticky z-10 bg-white hover:bg-gray-50 group-hover/row:bg-gray-50 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]"
+        style={{ left: getStickyLeft('comments', visibleColumns, canAccessProjectKanban, canAccessSalesTab) }}
         onClick={() => onOpenDrawer(person, 'notes')}
         title={noteCount > 0 ? `${noteCount} comments` : 'No comments'}
       >
-        <span className="inline-flex cursor-pointer items-center whitespace-nowrap text-sm font-semibold">
-          <span className="relative inline-flex h-5 w-5 items-center justify-center">
-            <MessageSquare
-              className={cn(
-                'h-4 w-4 transition-colors',
-                noteCount > 0 ? 'text-blue-500' : 'text-gray-400'
-              )}
-            />
-            {noteCount === 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full border border-gray-200 bg-white">
-                <Plus className="h-2.5 w-2.5 text-gray-500" />
-              </span>
-            ) : null}
-            {noteCount > 0 ? (
-              <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] leading-none text-white">
-                {noteCount}
-              </span>
-            ) : null}
+        <div className="flex h-full w-full items-center justify-center p-2">
+          <span className="inline-flex cursor-pointer items-center whitespace-nowrap text-sm font-semibold">
+            <span className="relative inline-flex h-5 w-5 items-center justify-center">
+              <MessageSquare
+                className={cn(
+                  'h-4 w-4 transition-colors',
+                  noteCount > 0 ? 'text-blue-500' : 'text-gray-400'
+                )}
+              />
+              {noteCount === 0 ? (
+                <span className="absolute -right-1 -top-1 inline-flex h-3 w-3 items-center justify-center rounded-full border border-gray-200 bg-white">
+                  <Plus className="h-2 w-2 text-gray-500" />
+                </span>
+              ) : null}
+              {noteCount > 0 ? (
+                <span className="absolute -right-1.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] leading-none text-white">
+                  {noteCount}
+                </span>
+              ) : null}
+            </span>
           </span>
-        </span>
+        </div>
       </TableCell>
       
       {/* 5. Group */}
