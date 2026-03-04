@@ -18,7 +18,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Trash2, MessageSquare, ShoppingCart, PhoneOff } from 'lucide-react'
+import { Trash2, MessageSquare, ShoppingCart, PhoneOff, MoreVertical, Edit2 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { createClient } from '@/utils/supabase/client'
 import { useState, useEffect } from 'react'
 import {
@@ -750,34 +756,43 @@ export function PersonDrawer({
                           </div>
                         ) : (
                           <>
-                            <div className="flex justify-between items-center gap-3">
-                              <div className="font-medium text-gray-900">{p.service_id || 'Unknown Service'}</div>
-                              <div className="font-semibold text-gray-900">
-                                ₪{(p.price || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                            <div className="flex justify-between items-start gap-3">
+                              <div className="space-y-1">
+                                <div className="font-medium text-gray-900">{p.service_id || 'Unknown Service'}</div>
+                                <div className="text-sm text-gray-500">תאריך מכירה: {p.sale_date ? new Date(p.sale_date).toLocaleDateString() : '-'}</div>
+                                <div className="text-sm text-gray-500">אופן תשלום: {p.payment_method || '-'}</div>
+                                <div className="text-sm text-gray-500">
+                                  הסדר תשלומים:{' '}
+                                  <span className="font-semibold text-gray-700">{p.installment_plan || '-'}</span>
+                                </div>
                               </div>
-                            </div>
-                            <div className="text-sm text-gray-500">תאריך מכירה: {p.sale_date ? new Date(p.sale_date).toLocaleDateString() : '-'}</div>
-                            <div className="text-sm text-gray-500">אופן תשלום: {p.payment_method || '-'}</div>
-                            <div className="text-sm text-gray-500">
-                              הסדר תשלומים:{' '}
-                              <span className="font-semibold text-gray-700">{p.installment_plan || '-'}</span>
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2">
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="outline"
-                                className="h-8 w-8"
-                                onClick={() => handleDeletePurchase(p)}
-                                disabled={deletingPurchaseId === p.id}
-                                aria-label="Delete service"
-                                title="Delete service"
-                              >
-                                <Trash2 className={`h-3.5 w-3.5 ${deletingPurchaseId === p.id ? 'animate-pulse' : ''}`} />
-                              </Button>
-                              <Button type="button" size="sm" variant="outline" onClick={() => startEditingPurchase(p)}>
-                                עריכה
-                              </Button>
+                              <div className="flex flex-col items-end gap-2">
+                                <div className="font-semibold text-gray-900">
+                                  ₪{(p.price || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                                </div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreVertical className="h-4 w-4" />
+                                      <span className="sr-only">Open menu</span>
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => startEditingPurchase(p)} className="flex items-center gap-2 cursor-pointer">
+                                      <Edit2 className="h-4 w-4" />
+                                      <span>עריכה</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => handleDeletePurchase(p)} 
+                                      className="flex items-center gap-2 text-red-600 focus:text-red-600 cursor-pointer"
+                                      disabled={deletingPurchaseId === p.id}
+                                    >
+                                      <Trash2 className={`h-4 w-4 ${deletingPurchaseId === p.id ? 'animate-pulse' : ''}`} />
+                                      <span>מחיקה</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             </div>
                           </>
                         )}
