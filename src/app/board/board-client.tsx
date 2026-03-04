@@ -27,7 +27,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus, PhoneCall } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus, PhoneCall, Pin, PinOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -66,6 +66,7 @@ const UNANSWERED_CALLS_DOT_CLASS: Record<string, string> = {
 const OPTIONAL_DB_COLUMNS = new Set<keyof PersonWithGroup>([
   'unanswered_calls_count',
   'follow_up_at',
+  'is_pinned',
 ])
 const getUnansweredCallsDotClass = (value: string | null | undefined) =>
   value ? UNANSWERED_CALLS_DOT_CLASS[value] || 'bg-gray-300' : 'bg-gray-200'
@@ -329,6 +330,7 @@ export function BoardClient({
     [userEmail]
   )
   const [people, setPeople] = useState(initialPeople)
+  const [pinnedPersonIds, setPinnedPersonIds] = useState<Set<string>>(new Set())
   const [purchaseCounts, setPurchaseCounts] = useState<Record<string, number>>({})
   const [purchaseTotals, setPurchaseTotals] = useState<Record<string, number>>({})
   const [noteCounts, setNoteCounts] = useState<Record<string, number>>({})
@@ -457,6 +459,77 @@ export function BoardClient({
 
     loadNoteStats()
   }, [supabase])
+
+  useEffect(() => {
+    const loadPins = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data, error } = await supabase
+        .from('user_pinned_items')
+        .select('person_id')
+        .eq('user_id', user.id)
+
+      if (error) {
+        console.error('Error loading pins:', error)
+        return
+      }
+
+      setPinnedPersonIds(new Set(data.map(p => p.person_id)))
+    }
+
+    loadPins()
+  }, [supabase])
+
+  const handleTogglePin = async (personId: string) => {
+    const isPinned = pinnedPersonIds.has(personId)
+    
+    if (!isPinned && pinnedPersonIds.size >= 5) {
+      alert('מוגבל לנעיצת 5 פריטים על מנת שלא תפספס לידים חדשים.')
+      return
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    if (isPinned) {
+      // Optimistic update
+      setPinnedPersonIds(prev => {
+        const next = new Set(prev)
+        next.delete(personId)
+        return next
+      })
+
+      const { error } = await supabase
+        .from('user_pinned_items')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('person_id', personId)
+
+      if (error) {
+        console.error('Error unpinning:', error)
+        // Revert
+        setPinnedPersonIds(prev => new Set([...prev, personId]))
+      }
+    } else {
+      // Optimistic update
+      setPinnedPersonIds(prev => new Set([...prev, personId]))
+
+      const { error } = await supabase
+        .from('user_pinned_items')
+        .insert([{ user_id: user.id, person_id: personId }])
+
+      if (error) {
+        console.error('Error pinning:', error)
+        // Revert
+        setPinnedPersonIds(prev => {
+          const next = new Set(prev)
+          next.delete(personId)
+          return next
+        })
+      }
+    }
+  }
 
   const handleUpdatePerson = async (id: string, updates: Partial<PersonWithGroup>) => {
     const previousPerson = people.find((person) => person.id === id)
@@ -897,6 +970,8 @@ export function BoardClient({
           }}
           canAccessSalesTab={canAccessSalesTab}
           canAccessProjectKanban={canAccessProjectKanban}
+          pinnedPersonIds={pinnedPersonIds}
+          onTogglePin={handleTogglePin}
         />
       ))}
       <PersonDrawer 
@@ -972,6 +1047,8 @@ function GroupSection({
   onOpenProjects,
   canAccessSalesTab,
   canAccessProjectKanban,
+  pinnedPersonIds,
+  onTogglePin,
 }: { 
   group: Group, 
   groups: Group[],
@@ -990,7 +1067,9 @@ function GroupSection({
   onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
   onOpenProjects: (person: PersonWithGroup) => void,
   canAccessSalesTab: boolean,
-  canAccessProjectKanban: boolean
+  canAccessProjectKanban: boolean,
+  pinnedPersonIds: Set<string>,
+  onTogglePin: (id: string) => void
 }) {
   const [manuallyOpen, setManuallyOpen] = useState(false)
   const [newItemName, setNewItemName] = useState('')
@@ -1043,36 +1122,47 @@ function GroupSection({
     (canAccessProjectKanban ? 1 : 0) + (canAccessSalesTab ? 1 : 0) + 1
 
   const sortedPeople = useMemo(() => {
-    if (!activeSortConfig) return people
+    let basePeople = [...people]
 
-    const getValue = (person: PersonWithGroup): string | number | null => {
-      if (activeSortConfig.field === 'sheet_datetime') return Date.parse(getPersonDateTime(person))
-      if (activeSortConfig.field === 'follow_up_at') {
-        return person.follow_up_at ? Date.parse(person.follow_up_at) : null
+    if (activeSortConfig) {
+      const getValue = (person: PersonWithGroup): string | number | null => {
+        if (activeSortConfig.field === 'sheet_datetime') return Date.parse(getPersonDateTime(person))
+        if (activeSortConfig.field === 'follow_up_at') {
+          return person.follow_up_at ? Date.parse(person.follow_up_at) : null
+        }
+        if (activeSortConfig.field === 'score_1_3') return person.score_1_3
+        if (activeSortConfig.field === 'total_contracts') return purchaseTotals[person.id] || 0
+        return person.full_name
       }
-      if (activeSortConfig.field === 'score_1_3') return person.score_1_3
-      if (activeSortConfig.field === 'total_contracts') return purchaseTotals[person.id] || 0
-      return person.full_name
+
+      basePeople.sort((a, b) => {
+        const valueA = getValue(a)
+        const valueB = getValue(b)
+
+        if (valueA === null && valueB === null) return 0
+        if (valueA === null) return 1
+        if (valueB === null) return -1
+
+        let comparison = 0
+        if (typeof valueA === 'number' && typeof valueB === 'number') {
+          comparison = valueA - valueB
+        } else {
+          comparison = String(valueA).localeCompare(String(valueB), 'he', { sensitivity: 'base' })
+        }
+
+        return activeSortConfig.direction === 'asc' ? comparison : -comparison
+      })
     }
 
-    return [...people].sort((a, b) => {
-      const valueA = getValue(a)
-      const valueB = getValue(b)
-
-      if (valueA === null && valueB === null) return 0
-      if (valueA === null) return 1
-      if (valueB === null) return -1
-
-      let comparison = 0
-      if (typeof valueA === 'number' && typeof valueB === 'number') {
-        comparison = valueA - valueB
-      } else {
-        comparison = String(valueA).localeCompare(String(valueB), 'he', { sensitivity: 'base' })
-      }
-
-      return activeSortConfig.direction === 'asc' ? comparison : -comparison
+    // Pinned items always at the top, maintaining their relative order
+    return basePeople.sort((a, b) => {
+      const isAPinned = pinnedPersonIds.has(a.id)
+      const isBPinned = pinnedPersonIds.has(b.id)
+      if (isAPinned && !isBPinned) return -1
+      if (!isAPinned && isBPinned) return 1
+      return 0
     })
-  }, [activeSortConfig, people, purchaseTotals])
+  }, [activeSortConfig, people, purchaseTotals, pinnedPersonIds])
 
   const toggleSort = (field: SortField) => {
     setSortConfig((prev) => {
@@ -1281,6 +1371,8 @@ function GroupSection({
                       onUpdatePerson(id, updates)
                     }
                   }} 
+                  isPinned={pinnedPersonIds.has(person.id)}
+                  onTogglePin={() => onTogglePin(person.id)}
                   isSelected={validSelectedIds.includes(person.id)}
                   onToggleSelect={(checked) => {
                     setSelectedIds((prev) =>
@@ -1383,6 +1475,8 @@ function EditableRow({
   visibleColumns,
   sellerOptions,
   onUpdate,
+  isPinned,
+  onTogglePin,
   isSelected,
   onToggleSelect,
   onOpenDrawer,
@@ -1400,6 +1494,8 @@ function EditableRow({
   visibleColumns: Record<ColumnKey, boolean>,
   sellerOptions: SellerOption[],
   onUpdate: (id: string, updates: Partial<PersonWithGroup>) => void,
+  isPinned: boolean,
+  onTogglePin: () => void,
   isSelected: boolean,
   onToggleSelect: (checked: boolean) => void,
   onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
@@ -1497,6 +1593,22 @@ function EditableRow({
             isWhatsappResponseField && 'max-w-[180px]',
             isLeadIdeaField && 'max-w-[200px]'
           )}>
+            {isFullNameField && (
+              <button
+                type="button"
+                className={cn(
+                  "flex-shrink-0 p-0.5 text-gray-400 hover:text-gray-600 transition-opacity",
+                  isPinned ? "opacity-100 text-blue-600 hover:text-blue-700" : "opacity-0 group-hover/row:opacity-100"
+                )}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onTogglePin()
+                }}
+                title={isPinned ? "בטל נעיצה" : "נעץ (עד 5)"}
+              >
+                {isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+              </button>
+            )}
             {isFullNameField && duplicates.length > 0 && (
               <Tooltip delayDuration={300}>
                 <TooltipTrigger asChild>

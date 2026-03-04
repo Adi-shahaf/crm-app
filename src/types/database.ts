@@ -37,6 +37,13 @@ export interface Person {
   updated_at: string;
 }
 
+export interface UserPinnedItem {
+  id: string;
+  user_id: string;
+  person_id: string;
+  created_at: string;
+}
+
 export interface Purchase {
   id: string;
   person_id: string;
