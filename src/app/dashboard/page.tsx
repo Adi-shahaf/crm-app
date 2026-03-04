@@ -20,7 +20,9 @@ export default async function DashboardPage() {
     redirect('/board')
   }
 
-  const { data: purchases, error } = await supabase.from('purchases').select('price, sale_date, service_id')
+  const { data: purchases, error } = await supabase
+    .from('purchases')
+    .select('person_id, price, sale_date, service_id')
 
   if (error) {
     console.error('Error loading dashboard data:', {
@@ -113,6 +115,82 @@ export default async function DashboardPage() {
     })
 
   const chartMax = chartItems.reduce((max, item) => Math.max(max, item.total), 0)
+
+  // --- Services funnel (per unique customer) ---
+  const feasibilityService = 'בדיקת היתכנות'
+  const softwareService = 'פיתוח תוכנה'
+  const servicesByPerson = new Map<string, Set<string>>()
+  const normalizeServiceName = (name: string) => name.trim().replace(/\s+/g, ' ').toLowerCase()
+  const normalizedFeasibility = normalizeServiceName(feasibilityService)
+  const normalizedSoftware = normalizeServiceName(softwareService)
+
+  for (const purchase of purchases || []) {
+    if (!purchase.person_id) continue
+    const serviceName = purchase.service_id?.trim()
+    if (!serviceName) continue
+
+    if (!servicesByPerson.has(purchase.person_id)) {
+      servicesByPerson.set(purchase.person_id, new Set<string>())
+    }
+    servicesByPerson.get(purchase.person_id)!.add(serviceName)
+  }
+
+  const step1People = new Set<string>()
+  const step2People = new Set<string>()
+  const step3People = new Set<string>()
+
+  for (const [personId, services] of servicesByPerson.entries()) {
+    const serviceList = [...services]
+    const hasFeasibility = serviceList.some((name) => normalizeServiceName(name).includes(normalizedFeasibility))
+
+    if (hasFeasibility) {
+      step1People.add(personId)
+    }
+  }
+
+  for (const personId of step1People) {
+    const services = servicesByPerson.get(personId)
+    if (!services) continue
+    const serviceList = [...services].map((name) => normalizeServiceName(name))
+    const hasAdditionalNonFeasibilityService = serviceList.some(
+      (serviceName) => !serviceName.includes(normalizedFeasibility)
+    )
+
+    if (hasAdditionalNonFeasibilityService) {
+      step2People.add(personId)
+    }
+  }
+
+  for (const personId of step2People) {
+    const services = servicesByPerson.get(personId)
+    if (!services) continue
+    const serviceList = [...services]
+    const hasSoftware = serviceList.some((name) => normalizeServiceName(name).includes(normalizedSoftware))
+    if (hasSoftware) {
+      step3People.add(personId)
+    }
+  }
+
+  const funnelSteps = [
+    {
+      title: '1 לקוחות שרכשו בדיקת היתכנות',
+      count: step1People.size,
+      tooltip: 'לקוחות שיש להם לפחות שירות אחד שמכיל "בדיקת היתכנות".',
+    },
+    {
+      title: '2 לקוחות שהמשיכו לחבילת שירותים',
+      count: step2People.size,
+      tooltip: 'מתוך שלב 1 בלבד: לקוחות עם לפחות שירות נוסף שאינו "בדיקת היתכנות".',
+    },
+    {
+      title: '3 לקוחות שהמשיכו לפיתוח תוכנה',
+      count: step3People.size,
+      tooltip: 'מתוך שלב 2 בלבד: לקוחות שיש להם גם שירות שמכיל "פיתוח תוכנה".',
+    },
+  ]
+  const funnelMax = Math.max(...funnelSteps.map(step => step.count), 0)
+  const step2FromStep1Pct = step1People.size > 0 ? (step2People.size / step1People.size) * 100 : 0
+  const step3FromStep2Pct = step2People.size > 0 ? (step3People.size / step2People.size) * 100 : 0
 
   // --- Weekly Leads Chart (Past 10 Weeks, Sunday to Saturday in Israel) ---
   let peopleDates: { created_at: string; sheet_datetime: string | null }[] = []
@@ -299,60 +377,107 @@ export default async function DashboardPage() {
               )}
             </section>
 
-            <section className="rounded-lg border bg-white p-4 shadow-sm max-w-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-800">לידים לשבוע</h2>
-              </div>
-              
-              <div className="mt-4 relative h-[180px] w-full border-b border-gray-200">
-                {/* Y-axis grid lines */}
-                <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
-                  {[100, 75, 50, 25, 0].map((val) => (
-                    <div key={val} className="flex items-center gap-2 w-full">
-                      <span className="text-[10px] text-gray-400 w-6 text-right">{val}</span>
-                      <div className="flex-1 border-t border-gray-100" />
-                    </div>
-                  ))}
+            <div className="grid gap-6 lg:grid-cols-2 items-start">
+              <section className="rounded-lg border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-800">לידים לשבוע</h2>
                 </div>
+                
+                <div className="mt-4 relative h-[180px] w-full border-b border-gray-200">
+                  {/* Y-axis grid lines */}
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                    {[100, 75, 50, 25, 0].map((val) => (
+                      <div key={val} className="flex items-center gap-2 w-full">
+                        <span className="text-[10px] text-gray-400 w-6 text-right">{val}</span>
+                        <div className="flex-1 border-t border-gray-100" />
+                      </div>
+                    ))}
+                  </div>
 
-                {/* Bars container */}
-                <div className="absolute inset-0 left-8 overflow-visible">
-                  <div className="flex items-end gap-2 h-full pb-0 pt-8 px-2">
-                    {weeklyChartItems.map((item) => {
-                      const dynamicMax = Math.max(weeklyChartMax, 10)
-                      const heightPercent = (item.total / dynamicMax) * 100
+                  {/* Bars container */}
+                  <div className="absolute inset-0 left-8 overflow-visible">
+                    <div className="flex items-end gap-2 h-full pb-0 pt-8 px-2">
+                      {weeklyChartItems.map((item) => {
+                        const dynamicMax = Math.max(weeklyChartMax, 10)
+                        const heightPercent = (item.total / dynamicMax) * 100
 
-                      return (
-                        <div key={item.key} className="flex flex-col items-center group relative w-6 h-full justify-end">
-                          {/* Value on top of bar */}
-                          <div 
-                            className="absolute left-1/2 -translate-x-1/2 mb-1 z-10" 
-                            style={{ bottom: `${Math.max(heightPercent, 5)}%` }}
-                          >
-                            <span className="text-[10px] font-bold text-gray-700 whitespace-nowrap">
-                              {item.total}
-                            </span>
+                        return (
+                          <div key={item.key} className="flex flex-col items-center group relative w-6 h-full justify-end">
+                            {/* Value on top of bar */}
+                            <div 
+                              className="absolute left-1/2 -translate-x-1/2 mb-1 z-10" 
+                              style={{ bottom: `${Math.max(heightPercent, 5)}%` }}
+                            >
+                              <span className="text-[10px] font-bold text-gray-700 whitespace-nowrap">
+                                {item.total}
+                              </span>
+                            </div>
+
+                            {/* The Bar */}
+                            <div className="w-[12px] rounded-t-sm bg-[#7C9DFF] transition-all hover:bg-[#5C7DFF] relative z-0" 
+                                 style={{ height: `${Math.max(heightPercent, 5)}%`, minHeight: '4px' }} 
+                            />
+                            
+                            {/* Label rotated */}
+                            <div className="absolute top-full mt-2 -rotate-45 origin-top-left whitespace-nowrap">
+                              <span className="text-[9px] text-gray-400">
+                                {item.label}
+                              </span>
+                            </div>
                           </div>
-
-                          {/* The Bar */}
-                          <div className="w-[12px] rounded-t-sm bg-[#7C9DFF] transition-all hover:bg-[#5C7DFF] relative z-0" 
-                               style={{ height: `${Math.max(heightPercent, 5)}%`, minHeight: '4px' }} 
-                          />
-                          
-                          {/* Label rotated */}
-                          <div className="absolute top-full mt-2 -rotate-45 origin-top-left whitespace-nowrap">
-                            <span className="text-[9px] text-gray-400">
-                              {item.label}
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="h-12" /> {/* Spacer for rotated labels */}
-            </section>
+                <div className="h-12" /> {/* Spacer for rotated labels */}
+              </section>
+
+              <section className="rounded-lg border bg-white p-4 shadow-sm" dir="rtl">
+                <h2 className="text-lg font-semibold text-gray-800">פאנל מכירה</h2>
+                <div className="mt-4 space-y-3">
+                  {funnelSteps.map((step) => {
+                    const widthPercent = funnelMax > 0 ? Math.max((step.count / funnelMax) * 100, 6) : 0
+
+                    return (
+                      <div key={step.title} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm text-gray-700 flex items-center gap-1.5">
+                            {step.title}
+                            <span className="group relative inline-flex items-center">
+                              <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+                              <span className="absolute bottom-full right-1/2 translate-x-1/2 mb-2 hidden w-56 rounded bg-gray-900 p-2 text-[10px] leading-snug text-white shadow-lg group-hover:block z-10">
+                                {step.tooltip}
+                                <span className="absolute top-full right-1/2 translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900" />
+                              </span>
+                            </span>
+                          </span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {step.count}
+                            {step.title.startsWith('2 ') && (
+                              <span className="ms-1 text-xs font-normal text-gray-500">
+                                ({step2FromStep1Pct.toFixed(1)}%)
+                              </span>
+                            )}
+                            {step.title.startsWith('3 ') && (
+                              <span className="ms-1 text-xs font-normal text-gray-500">
+                                ({step3FromStep2Pct.toFixed(1)}%)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-gray-100">
+                          <div
+                            className="h-full rounded-full bg-indigo-500"
+                            style={{ width: `${widthPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            </div>
           </div>
         </div>
 
