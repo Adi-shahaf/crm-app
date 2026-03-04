@@ -63,10 +63,9 @@ const UNANSWERED_CALLS_DOT_CLASS: Record<string, string> = {
   [UNANSWERED_CALLS_OPTIONS[3]]: 'bg-gray-600',
   [UNANSWERED_CALLS_OPTIONS[4]]: 'bg-gray-700',
 }
-const OPTIONAL_DB_COLUMNS = new Set<keyof PersonWithGroup>([
+const OPTIONAL_DB_COLUMNS = new Set<string>([
   'unanswered_calls_count',
   'follow_up_at',
-  'is_pinned',
 ])
 const getUnansweredCallsDotClass = (value: string | null | undefined) =>
   value ? UNANSWERED_CALLS_DOT_CLASS[value] || 'bg-gray-300' : 'bg-gray-200'
@@ -114,7 +113,7 @@ const shouldSuppressOptionalColumnUpdateError = (
   updates: Partial<PersonWithGroup>,
   error: unknown
 ) => {
-  const updateKeys = Object.keys(updates) as (keyof PersonWithGroup)[]
+  const updateKeys = Object.keys(updates)
   if (updateKeys.length !== 1) return false
   if (!OPTIONAL_DB_COLUMNS.has(updateKeys[0])) return false
 
