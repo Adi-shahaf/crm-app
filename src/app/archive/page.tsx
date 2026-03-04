@@ -23,8 +23,9 @@ async function fetchAllArchivedPeople(
     let query = supabase
       .from('people')
       .select('*, groups(*)')
-      .eq('is_archived', true)
       .range(from, from + PAGE_SIZE - 1)
+
+    query = query.eq('is_archived', true)
 
     if (useSheetDatetimeOrder) {
       query = query.order('sheet_datetime', { ascending: false, nullsFirst: false })

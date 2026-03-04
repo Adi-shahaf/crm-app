@@ -23,8 +23,10 @@ async function fetchAllPeople(
     let query = supabase
       .from('people')
       .select('*, groups(*)')
-      .or('is_archived.eq.false,is_archived.is.null')
       .range(from, from + PAGE_SIZE - 1)
+
+    // Filter out archived items
+    query = query.or('is_archived.eq.false,is_archived.is.null')
 
     if (useSheetDatetimeOrder) {
       query = query.order('sheet_datetime', { ascending: false, nullsFirst: false })
@@ -76,7 +78,20 @@ export default async function BoardPage() {
   }
 
   if (groupsError || peopleError) {
-    console.error('Error fetching data:', groupsError || peopleError)
+    console.error('Error fetching data:', {
+      groupsError: groupsError ? {
+        message: groupsError.message,
+        details: groupsError.details,
+        hint: groupsError.hint,
+        code: groupsError.code
+      } : null,
+      peopleError: peopleError ? {
+        message: peopleError.message,
+        details: peopleError.details,
+        hint: peopleError.hint,
+        code: peopleError.code
+      } : null
+    })
     return <div>Error loading board data</div>
   }
 

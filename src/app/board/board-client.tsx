@@ -472,7 +472,12 @@ export function BoardClient({
         .eq('user_id', user.id)
 
       if (error) {
-        console.error('Error loading pins:', error)
+        console.error('Error loading pins:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
         return
       }
 
@@ -1093,6 +1098,8 @@ function GroupSection({
   canAccessProjectKanban,
   pinnedPersonIds,
   onTogglePin,
+  onRestorePeople,
+  isArchiveMode,
 }: { 
   group: Group, 
   groups: Group[],
@@ -1106,8 +1113,6 @@ function GroupSection({
   onUpdateMultiplePeople: (ids: string[], updates: Partial<PersonWithGroup>) => void,
   onCreatePerson: (groupId: string, name: string) => void,
   onDeletePeople: (ids: string[]) => void,
-  onRestorePeople?: (ids: string[]) => void,
-  isArchiveMode?: boolean,
   visibleColumns: Record<ColumnKey, boolean>,
   sellerOptions: SellerOption[],
   onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
@@ -1115,7 +1120,9 @@ function GroupSection({
   canAccessSalesTab: boolean,
   canAccessProjectKanban: boolean,
   pinnedPersonIds: Set<string>,
-  onTogglePin: (id: string) => void
+  onTogglePin: (id: string) => void,
+  onRestorePeople?: (ids: string[]) => void,
+  isArchiveMode?: boolean,
 }) {
   const [manuallyOpen, setManuallyOpen] = useState(false)
   const [newItemName, setNewItemName] = useState('')
