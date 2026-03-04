@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Image from 'next/image'
-import { BoardClient } from './board-client'
+import { BoardClient } from '../board/board-client'
 import { HeaderMenu } from '@/components/header-menu'
 import { canAccessDashboard } from '@/lib/dashboard-access'
 import { PersonWithGroup } from '@/types/database'
@@ -13,7 +13,7 @@ import {
 
 const PAGE_SIZE = 1000
 
-async function fetchAllPeople(
+async function fetchAllArchivedPeople(
   supabase: Awaited<ReturnType<typeof createClient>>,
   useSheetDatetimeOrder: boolean
 ) {
@@ -23,7 +23,7 @@ async function fetchAllPeople(
     let query = supabase
       .from('people')
       .select('*, groups(*)')
-      .or('is_archived.eq.false,is_archived.is.null')
+      .eq('is_archived', true)
       .range(from, from + PAGE_SIZE - 1)
 
     if (useSheetDatetimeOrder) {
@@ -51,7 +51,7 @@ async function fetchAllPeople(
   return { data: allPeople, error: null }
 }
 
-export default async function BoardPage() {
+export default async function ArchivePage() {
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -66,18 +66,18 @@ export default async function BoardPage() {
     .select('*')
     .order('sort_order', { ascending: true })
 
-  let { data: people, error: peopleError } = await fetchAllPeople(supabase, true)
+  let { data: people, error: peopleError } = await fetchAllArchivedPeople(supabase, true)
 
   // Backward compatibility until the sheet_datetime migration is applied everywhere.
   if (peopleError && peopleError.message.includes('sheet_datetime')) {
-    const fallback = await fetchAllPeople(supabase, false)
+    const fallback = await fetchAllArchivedPeople(supabase, false)
     people = fallback.data
     peopleError = fallback.error
   }
 
   if (groupsError || peopleError) {
     console.error('Error fetching data:', groupsError || peopleError)
-    return <div>Error loading board data</div>
+    return <div>Error loading archive data</div>
   }
 
   const userCanAccessDashboard = canAccessDashboard(user.email)
@@ -93,7 +93,7 @@ export default async function BoardPage() {
         <HeaderMenu
           userEmail={user.email}
           canAccessDashboard={userCanAccessDashboard}
-          currentPath="/board"
+          currentPath="/archive"
         />
       </header>
       
@@ -102,6 +102,7 @@ export default async function BoardPage() {
           initialGroups={visibleGroups}
           initialPeople={visiblePeople}
           userEmail={user.email}
+          isArchiveMode={true}
         />
       </main>
     </div>

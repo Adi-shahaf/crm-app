@@ -27,7 +27,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
-import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus, PhoneCall, Pin, PinOff } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Check, X, ShoppingCart, Trash2, MessageSquare, KanbanSquare, Copy, Plus, PhoneCall, Pin, PinOff, ArchiveRestore } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -313,10 +313,12 @@ export function BoardClient({
   initialGroups, 
   initialPeople,
   userEmail,
+  isArchiveMode = false,
 }: { 
   initialGroups: Group[], 
   initialPeople: PersonWithGroup[],
   userEmail: string | null | undefined,
+  isArchiveMode?: boolean,
 }) {
   const groups = useMemo(
     () => filterGroupsByEmailAccess(initialGroups, userEmail),
@@ -725,7 +727,7 @@ export function BoardClient({
       const batchIds = ids.slice(i, i + DELETE_BATCH_SIZE)
       const { error } = await supabase
         .from('people')
-        .delete()
+        .update({ is_archived: true })
         .in('id', batchIds)
 
       if (error) {
@@ -752,6 +754,47 @@ export function BoardClient({
         setPurchaseCounts(previousCounts)
         setPurchaseTotals(previousTotals)
         setNoteCounts(previousNoteCounts)
+      } else {
+        setPeople(data)
+      }
+    }
+  }
+
+  const handleRestorePeople = async (ids: string[]) => {
+    if (!ids.length) return
+
+    const previousPeople = people
+    setPeople((prev) => prev.filter((person) => !ids.includes(person.id)))
+    setSelectedPerson((prev) => (prev && ids.includes(prev.id) ? null : prev))
+
+    let restoreError: unknown = null
+
+    for (let i = 0; i < ids.length; i += DELETE_BATCH_SIZE) {
+      const batchIds = ids.slice(i, i + DELETE_BATCH_SIZE)
+      const { error } = await supabase
+        .from('people')
+        .update({ is_archived: false })
+        .in('id', batchIds)
+
+      if (error) {
+        restoreError = error
+        break
+      }
+    }
+
+    if (restoreError) {
+      console.error('Error restoring people:', {
+        count: ids.length,
+        error: restoreError,
+      })
+      
+      const { data, error: refreshError } = await supabase
+        .from('people')
+        .select('*, groups(*)')
+        .order('created_at', { ascending: false })
+
+      if (refreshError || !data) {
+        setPeople(previousPeople)
       } else {
         setPeople(data)
       }
@@ -957,6 +1000,8 @@ export function BoardClient({
           onUpdateMultiplePeople={handleUpdateMultiplePeople}
           onCreatePerson={handleCreatePerson}
           onDeletePeople={handleDeletePeople}
+          onRestorePeople={handleRestorePeople}
+          isArchiveMode={isArchiveMode}
           visibleColumns={visibleColumns}
           sellerOptions={sellerOptions}
           onOpenDrawer={(person, tab = 'notes') => {
@@ -1061,6 +1106,8 @@ function GroupSection({
   onUpdateMultiplePeople: (ids: string[], updates: Partial<PersonWithGroup>) => void,
   onCreatePerson: (groupId: string, name: string) => void,
   onDeletePeople: (ids: string[]) => void,
+  onRestorePeople?: (ids: string[]) => void,
+  isArchiveMode?: boolean,
   visibleColumns: Record<ColumnKey, boolean>,
   sellerOptions: SellerOption[],
   onOpenDrawer: (person: PersonWithGroup, tab?: DrawerTab) => void,
@@ -1232,14 +1279,19 @@ function GroupSection({
               variant="outline"
               size="sm"
               onClick={() => {
-                if (!window.confirm(`Delete ${validSelectedIds.length} selected row(s)?`)) return
-                onDeletePeople(validSelectedIds)
+                if (isArchiveMode && onRestorePeople) {
+                  if (!window.confirm(`Restore ${validSelectedIds.length} selected row(s)?`)) return
+                  onRestorePeople(validSelectedIds)
+                } else {
+                  if (!window.confirm(`Delete ${validSelectedIds.length} selected row(s)?`)) return
+                  onDeletePeople(validSelectedIds)
+                }
                 setSelectedIds([])
               }}
               className="h-8"
             >
-              <Trash2 className="h-4 w-4" />
-              Delete selected ({validSelectedIds.length})
+              {isArchiveMode ? <ArchiveRestore className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+              {isArchiveMode ? `Restore selected (${validSelectedIds.length})` : `Delete selected (${validSelectedIds.length})`}
             </Button>
           )}
         </div>
@@ -1410,6 +1462,7 @@ function GroupSection({
               )}
               
               {/* Add New Row */}
+              {!isArchiveMode && (
               <TableRow className="hover:bg-gray-50/50">
                 <TableCell 
                   className="sticky z-10 bg-white"
@@ -1455,6 +1508,7 @@ function GroupSection({
                   )}
                 </TableCell>
               </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>

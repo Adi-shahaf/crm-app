@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Menu, RotateCw, KanbanSquare, LayoutDashboard, Table as TableIcon } from 'lucide-react'
+import { Menu, RotateCw, KanbanSquare, LayoutDashboard, Table as TableIcon, Archive } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
 import { Button } from '@/components/ui/button'
@@ -18,7 +18,7 @@ import {
 type HeaderMenuProps = {
   userEmail: string | null | undefined
   canAccessDashboard: boolean
-  currentPath: '/board' | '/dashboard' | '/kanban'
+  currentPath: '/board' | '/dashboard' | '/kanban' | '/archive'
 }
 
 export function HeaderMenu({ userEmail, canAccessDashboard, currentPath }: HeaderMenuProps) {
@@ -83,6 +83,16 @@ export function HeaderMenu({ userEmail, canAccessDashboard, currentPath }: Heade
                 >
                   <KanbanSquare className="h-4 w-4" />
                   Kanban
+                </Link>
+              ) : null}
+
+              {currentPath !== '/archive' ? (
+                <Link
+                  href="/archive"
+                  className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  <Archive className="h-4 w-4" />
+                  Archive
                 </Link>
               ) : null}
             </nav>

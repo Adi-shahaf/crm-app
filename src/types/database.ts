@@ -33,6 +33,7 @@ export interface Person {
   external_source_id: string | null;
   sheet_datetime: string | null;
   follow_up_at: string | null;
+  is_archived: boolean | null;
   created_at: string;
   updated_at: string;
 }

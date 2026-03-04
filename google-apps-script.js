@@ -110,12 +110,20 @@ function postRow_(sheet, rowNumber) {
   postWithRetry_(payload, rowNumber);
 }
 
-function onEdit(e) {
+/**
+ * Handle individual row edits.
+ * Renamed from onEdit to avoid simple trigger permission issues.
+ */
+function handleOnEdit(e) {
   if (!e || !e.range) return;
   postRow_(e.range.getSheet(), e.range.getRow());
 }
 
-function onChange(e) {
+/**
+ * Handle structural changes (pasting, row insertion).
+ * Renamed from onChange to maintain consistency.
+ */
+function handleOnChange(e) {
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return;
 
@@ -142,13 +150,14 @@ function setupTriggers() {
   const sheet = getSheet_();
   const key = KEY_PREFIX + sheet.getSheetId();
 
+  // Clear all existing triggers
   ScriptApp.getProjectTriggers().forEach(t => {
-    const fn = t.getHandlerFunction();
-    if (fn === 'onEdit' || fn === 'onChange') ScriptApp.deleteTrigger(t);
+    ScriptApp.deleteTrigger(t);
   });
 
   PropertiesService.getScriptProperties().setProperty(key, String(sheet.getLastRow()));
 
-  ScriptApp.newTrigger('onEdit').forSpreadsheet(ss).onEdit().create();
-  ScriptApp.newTrigger('onChange').forSpreadsheet(ss).onChange().create();
+  // Create installable triggers pointing to the renamed functions
+  ScriptApp.newTrigger('handleOnEdit').forSpreadsheet(ss).onEdit().create();
+  ScriptApp.newTrigger('handleOnChange').forSpreadsheet(ss).onChange().create();
 }
