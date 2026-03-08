@@ -1,22 +1,20 @@
 import { createClient } from '@/utils/supabase/server'
-import { redirect } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
-type LoginPageProps = {
+type ResetPasswordPageProps = {
   searchParams: Promise<{
     error?: string
-    success?: string
   }>
 }
 
-export default async function Page({ searchParams }: LoginPageProps) {
+export default async function ResetPasswordPage({ searchParams }: ResetPasswordPageProps) {
   const supabase = await createClient()
-  const { error, success } = await searchParams
+  const [{ error }, { data }] = await Promise.all([searchParams, supabase.auth.getUser()])
 
-  const { data } = await supabase.auth.getUser()
-  if (data?.user) {
-    redirect('/board')
+  if (!data?.user) {
+    redirect('/login?error=Your recovery session expired. Request a new reset link.')
   }
 
   return (
@@ -25,37 +23,43 @@ export default async function Page({ searchParams }: LoginPageProps) {
         <div className="mb-6 flex justify-center">
           <Image src="/synergylogo.png" alt="Synergy logo" width={180} height={52} priority />
         </div>
+
+        <div className="mb-6 space-y-2 text-center">
+          <h1 className="text-xl font-semibold text-gray-900">Choose a new password</h1>
+          <p className="text-sm text-gray-600">
+            Set a new password for {data.user.email ?? 'your account'}.
+          </p>
+        </div>
+
         {error ? (
           <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
           </p>
         ) : null}
-        {success ? (
-          <p className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-            {success}
-          </p>
-        ) : null}
-        <form action="/auth/login" method="post" className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
+
+        <form action="/auth/update-password" method="post" className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700" htmlFor="password">
-              Password
+              New password
             </label>
             <input
               id="password"
               name="password"
               type="password"
+              minLength={8}
+              required
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700" htmlFor="confirmPassword">
+              Confirm new password
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              minLength={8}
               required
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
@@ -64,14 +68,15 @@ export default async function Page({ searchParams }: LoginPageProps) {
             type="submit"
             className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
-            Sign In
+            Update password
           </button>
-          <div className="text-center">
-            <Link href="/forgot-password" className="text-sm font-medium text-blue-600 hover:text-blue-500">
-              Forgot your password?
-            </Link>
-          </div>
         </form>
+
+        <p className="mt-4 text-center text-sm text-gray-600">
+          <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+            Back to sign in
+          </Link>
+        </p>
       </div>
     </div>
   )
